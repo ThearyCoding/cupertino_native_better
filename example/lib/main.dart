@@ -13,6 +13,7 @@ import 'demos/issues_test.dart';
 import 'demos/native_tab_bar_demo.dart';
 import 'demos/bottom_nav_test.dart';
 import 'demos/bottom_nav_indexed_test.dart';
+import 'demos/bottom_nav_custom_icons_test.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -309,6 +310,21 @@ class HomePage extends StatelessWidget {
                 onTap: () {
                   Navigator.of(context).push(
                     CupertinoPageRoute(builder: (_) => const BottomNavIndexedTestPage()),
+                  );
+                },
+              ),
+              CupertinoListTile(
+                title: Text('Bottom Nav Test (Custom Icons)'),
+                leading: CNIcon(
+                  symbol: CNSymbol(
+                    'photo.artframe',
+                    color: accentColor,
+                  ),
+                ),
+                trailing: CupertinoListTileChevron(),
+                onTap: () {
+                  Navigator.of(context).push(
+                    CupertinoPageRoute(builder: (_) => const BottomNavCustomIconsTestPage()),
                   );
                 },
               ),

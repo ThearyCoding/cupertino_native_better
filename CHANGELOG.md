@@ -1,3 +1,13 @@
+## 1.3.5
+
+### Bug Fixes
+
+- **Fixed**: `CNTabBar` `iconSize` now correctly applies to `CNImageAsset` (SVG/image) icons (Issue #19)
+  - Previously, only SF Symbol icons respected the `iconSize` property
+  - Image assets loaded via `loadFlutterAsset` and `createImageFromData` now receive the size parameter
+
+---
+
 ## 1.3.4
 
 ### New Features

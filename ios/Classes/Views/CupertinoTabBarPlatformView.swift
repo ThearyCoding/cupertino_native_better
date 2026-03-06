@@ -131,13 +131,16 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
       for i in range {
         var image: UIImage? = nil
         var selectedImage: UIImage? = nil
-        
+
+        // Extract size for this item from sizes array
+        let imgSize: CGSize? = (i < sizes.count) ? sizes[i].flatMap { $0.doubleValue > 0 ? CGSize(width: $0.doubleValue, height: $0.doubleValue) : nil } : nil
+
         // Priority: imageAsset > customIconBytes > SF Symbol
         // Unselected image
         if i < imageAssetData.count, let data = imageAssetData[i] {
-          image = Self.createImageFromData(data, format: (i < imageAssetFormats.count) ? imageAssetFormats[i] : nil, scale: iconScale)
+          image = Self.createImageFromData(data, format: (i < imageAssetFormats.count) ? imageAssetFormats[i] : nil, scale: iconScale, size: imgSize)
         } else if i < imageAssetPaths.count && !imageAssetPaths[i].isEmpty {
-          image = Self.loadFlutterAsset(imageAssetPaths[i])
+          image = Self.loadFlutterAsset(imageAssetPaths[i], size: imgSize)
         } else if i < customIconBytes.count, let data = customIconBytes[i] {
           image = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(.alwaysTemplate)
         } else if i < symbols.count && !symbols[i].isEmpty {
@@ -152,9 +155,9 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
 
         // Selected image: Use active versions if available
         if i < activeImageAssetData.count, let data = activeImageAssetData[i] {
-          selectedImage = Self.createImageFromData(data, format: (i < activeImageAssetFormats.count) ? activeImageAssetFormats[i] : nil, scale: iconScale)
+          selectedImage = Self.createImageFromData(data, format: (i < activeImageAssetFormats.count) ? activeImageAssetFormats[i] : nil, scale: iconScale, size: imgSize)
         } else if i < activeImageAssetPaths.count && !activeImageAssetPaths[i].isEmpty {
-          selectedImage = Self.loadFlutterAsset(activeImageAssetPaths[i])
+          selectedImage = Self.loadFlutterAsset(activeImageAssetPaths[i], size: imgSize)
         } else if i < activeCustomIconBytes.count, let data = activeCustomIconBytes[i] {
           selectedImage = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(.alwaysTemplate)
         } else if i < activeSymbols.count && !activeSymbols[i].isEmpty {
@@ -430,12 +433,15 @@ channel.setMethodCallHandler { [weak self] call, result in
               var image: UIImage? = nil
               var selectedImage: UIImage? = nil
 
+              // Extract size for this item from sizes array
+              let imgSize: CGSize? = (i < sizes.count) ? sizes[i].flatMap { $0.doubleValue > 0 ? CGSize(width: $0.doubleValue, height: $0.doubleValue) : nil } : nil
+
               // Priority: imageAsset > customIconBytes > SF Symbol
               // Unselected image
               if i < imageAssetData.count, let data = imageAssetData[i] {
-                image = Self.createImageFromData(data, format: (i < imageAssetFormats.count) ? imageAssetFormats[i] : nil, scale: self.iconScale)
+                image = Self.createImageFromData(data, format: (i < imageAssetFormats.count) ? imageAssetFormats[i] : nil, scale: self.iconScale, size: imgSize)
               } else if i < imageAssetPaths.count && !imageAssetPaths[i].isEmpty {
-                image = Self.loadFlutterAsset(imageAssetPaths[i])
+                image = Self.loadFlutterAsset(imageAssetPaths[i], size: imgSize)
               } else if i < customIconBytes.count, let data = customIconBytes[i] {
                 image = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(.alwaysTemplate)
               } else if i < symbols.count && !symbols[i].isEmpty {
@@ -450,9 +456,9 @@ channel.setMethodCallHandler { [weak self] call, result in
 
               // Selected image: Use active versions if available
               if i < activeImageAssetData.count, let data = activeImageAssetData[i] {
-                selectedImage = Self.createImageFromData(data, format: (i < activeImageAssetFormats.count) ? activeImageAssetFormats[i] : nil, scale: self.iconScale)
+                selectedImage = Self.createImageFromData(data, format: (i < activeImageAssetFormats.count) ? activeImageAssetFormats[i] : nil, scale: self.iconScale, size: imgSize)
               } else if i < activeImageAssetPaths.count && !activeImageAssetPaths[i].isEmpty {
-                selectedImage = Self.loadFlutterAsset(activeImageAssetPaths[i])
+                selectedImage = Self.loadFlutterAsset(activeImageAssetPaths[i], size: imgSize)
               } else if i < activeCustomIconBytes.count, let data = activeCustomIconBytes[i] {
                 selectedImage = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(.alwaysTemplate)
               } else if i < activeSymbols.count && !activeSymbols[i].isEmpty {
@@ -466,7 +472,7 @@ channel.setMethodCallHandler { [weak self] call, result in
               } else {
                 selectedImage = image // Fallback to same image
               }
-              
+
               let title = (i < labels.count && !labels[i].isEmpty) ? labels[i] : nil
               let item = UITabBarItem(title: title, image: image, selectedImage: selectedImage)
               if i < badges.count && !badges[i].isEmpty {
@@ -538,33 +544,49 @@ channel.setMethodCallHandler { [weak self] call, result in
             }
             return nil
           }()
+          let iconSizes = self.currentIconSizes
           func buildItems(_ range: Range<Int>) -> [UITabBarItem] {
             var items: [UITabBarItem] = []
             for i in range {
               var image: UIImage? = nil
               var selectedImage: UIImage? = nil
 
+              // Extract size for this item from stored icon sizes
+              let imgSize: CGSize? = (i < iconSizes.count && iconSizes[i] > 0) ? CGSize(width: iconSizes[i], height: iconSizes[i]) : nil
+
               // Priority: imageAsset > customIconBytes > SF Symbol
               // Unselected image
               if i < imageAssetData.count, let data = imageAssetData[i] {
-                image = Self.createImageFromData(data, format: (i < imageAssetFormats.count) ? imageAssetFormats[i] : nil, scale: self.iconScale)
+                image = Self.createImageFromData(data, format: (i < imageAssetFormats.count) ? imageAssetFormats[i] : nil, scale: self.iconScale, size: imgSize)
               } else if i < imageAssetPaths.count && !imageAssetPaths[i].isEmpty {
-                image = Self.loadFlutterAsset(imageAssetPaths[i])
+                image = Self.loadFlutterAsset(imageAssetPaths[i], size: imgSize)
               } else if i < customIconBytes.count, let data = customIconBytes[i] {
                 image = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(.alwaysTemplate)
               } else if i < symbols.count && !symbols[i].isEmpty {
-                image = UIImage(systemName: symbols[i])
+                // Apply size configuration if stored
+                if i < iconSizes.count && iconSizes[i] > 0 {
+                  let config = UIImage.SymbolConfiguration(pointSize: iconSizes[i])
+                  image = UIImage(systemName: symbols[i], withConfiguration: config)
+                } else {
+                  image = UIImage(systemName: symbols[i])
+                }
               }
 
               // Selected image: Use active versions if available
               if i < activeImageAssetData.count, let data = activeImageAssetData[i] {
-                selectedImage = Self.createImageFromData(data, format: (i < activeImageAssetFormats.count) ? activeImageAssetFormats[i] : nil, scale: self.iconScale)
+                selectedImage = Self.createImageFromData(data, format: (i < activeImageAssetFormats.count) ? activeImageAssetFormats[i] : nil, scale: self.iconScale, size: imgSize)
               } else if i < activeImageAssetPaths.count && !activeImageAssetPaths[i].isEmpty {
-                selectedImage = Self.loadFlutterAsset(activeImageAssetPaths[i])
+                selectedImage = Self.loadFlutterAsset(activeImageAssetPaths[i], size: imgSize)
               } else if i < activeCustomIconBytes.count, let data = activeCustomIconBytes[i] {
                 selectedImage = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(.alwaysTemplate)
               } else if i < activeSymbols.count && !activeSymbols[i].isEmpty {
-                selectedImage = UIImage(systemName: activeSymbols[i])
+                // Apply size configuration if stored
+                if i < iconSizes.count && iconSizes[i] > 0 {
+                  let config = UIImage.SymbolConfiguration(pointSize: iconSizes[i])
+                  selectedImage = UIImage(systemName: activeSymbols[i], withConfiguration: config)
+                } else {
+                  selectedImage = UIImage(systemName: activeSymbols[i])
+                }
               } else {
                 selectedImage = image // Fallback to same image
               }
@@ -931,12 +953,12 @@ channel.setMethodCallHandler { [weak self] call, result in
     return ImageUtils.colorFromARGB(argb)
   }
 
-  private static func loadFlutterAsset(_ assetPath: String) -> UIImage? {
-    return ImageUtils.loadFlutterAsset(assetPath)
+  private static func loadFlutterAsset(_ assetPath: String, size: CGSize? = nil) -> UIImage? {
+    return ImageUtils.loadFlutterAsset(assetPath, size: size)
   }
 
-  private static func createImageFromData(_ data: Data, format: String?, scale: CGFloat) -> UIImage? {
-    return ImageUtils.createImageFromData(data, format: format, scale: scale)
+  private static func createImageFromData(_ data: Data, format: String?, scale: CGFloat, size: CGSize? = nil) -> UIImage? {
+    return ImageUtils.createImageFromData(data, format: format, size: size, scale: scale)
   }
 
 }
