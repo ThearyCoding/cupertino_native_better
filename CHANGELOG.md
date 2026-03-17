@@ -1,3 +1,17 @@
+## 1.3.6
+
+### Bug Fixes
+
+- **Fixed**: Horizontal glass button group "waist" effect — reduced toolbar shrinkage between adjacent buttons by enforcing minimum 80pt glass spacing for horizontal groups with 2+ buttons (PR #20 by @byackee)
+- **Fixed**: `CNTabBar` now shows a Flutter fallback tab bar while the native view initializes, instead of blank space for ~2 seconds (Issue #5)
+- **Fixed**: `CNTabBar` with 5 items no longer has sporadic missing labels — added a second refresh pass for slow-to-initialize native views (Issue #6)
+
+### Improvements
+
+- **Added**: macOS podspec for CocoaPods support (Issue #10)
+
+---
+
 ## 1.3.5
 
 ### Bug Fixes
