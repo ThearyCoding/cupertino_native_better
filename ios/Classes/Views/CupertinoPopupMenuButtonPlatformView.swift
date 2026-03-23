@@ -565,7 +565,12 @@ class CupertinoPopupMenuButtonPlatformView: NSObject, FlutterPlatformView {
     
     // Handle custom icon bytes (medium priority)
     if let data = btnCustomIconBytes {
-      return UIImage(data: data, scale: self.iconScale)?.withRenderingMode(.alwaysTemplate)
+      var image = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(.alwaysTemplate)
+      // Apply custom icon color if provided, preserving the tint with .alwaysOriginal
+      if let image = image, let color = btnIconColor {
+        return image.withTintColor(color, renderingMode: .alwaysOriginal)
+      }
+      return image
     }
     
     // Handle SF Symbol (lowest priority)
