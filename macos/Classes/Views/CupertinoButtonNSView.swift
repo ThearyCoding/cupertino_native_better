@@ -114,19 +114,16 @@ class CupertinoButtonNSView: NSView {
       self.button = nsButton
       
       // Parse new parameters (basic support)
-      if let ip = dict["imagePlacement"] as? String {
-        // Map imagePlacement to imagePosition
-        switch ip {
-        case "leading": nsButton.imagePosition = .imageLeft
-        case "trailing": nsButton.imagePosition = .imageRight
-        case "top": nsButton.imagePosition = .imageAbove
-        case "bottom": nsButton.imagePosition = .imageBelow
-        default: nsButton.imagePosition = .imageLeft
+      if let argsDict = args as? [String: Any] {
+        if let ip = argsDict["imagePlacement"] as? String {
+          switch ip {
+          case "leading": nsButton.imagePosition = .imageLeft
+          case "trailing": nsButton.imagePosition = .imageRight
+          case "top": nsButton.imagePosition = .imageAbove
+          case "bottom": nsButton.imagePosition = .imageBelow
+          default: nsButton.imagePosition = .imageLeft
+          }
         }
-      }
-      if let hp = dict["horizontalPadding"] as? NSNumber {
-        nsButton.contentHuggingPriority(for: .horizontal)
-        // Note: NSButton doesn't have direct contentInsets, so we'll use padding via attributed title
       }
 
       if let t = title { nsButton.title = t }
@@ -328,7 +325,8 @@ class CupertinoButtonNSView: NSView {
             }
           }
           
-          if !usesSwiftUI, let button = self.button, let title = button.title, !title.isEmpty {
+          if !usesSwiftUI, let button = self.button, !button.title.isEmpty {
+            let title = button.title
             let attrString = NSMutableAttributedString(string: title)
             if let font = font {
               attrString.addAttribute(.font, value: font, range: NSRange(location: 0, length: title.count))
@@ -341,8 +339,8 @@ class CupertinoButtonNSView: NSView {
           result(nil)
         } else {
           // Clear text style
-          if !usesSwiftUI, let button = self.button, let title = button.title {
-            button.attributedTitle = NSAttributedString(string: title)
+          if !usesSwiftUI, let button = self.button {
+            button.attributedTitle = NSAttributedString(string: button.title)
           }
           result(nil)
         }
@@ -466,7 +464,8 @@ class CupertinoButtonNSView: NSView {
     paddingHorizontal: CGFloat?,
     paddingVertical: CGFloat?,
     minHeight: CGFloat?,
-    spacing: CGFloat?
+    spacing: CGFloat?,
+    badgeCount: Int? = nil
   ) {
     // Create GlassButtonConfig with provided values or defaults
     let config = GlassButtonConfig(
@@ -516,7 +515,6 @@ class CupertinoButtonNSView: NSView {
           glassEffectUnionId: glassEffectUnionId,
           glassEffectId: glassEffectId,
           glassEffectInteractive: glassEffectInteractive,
-          namespace: namespace,
           config: config,
           badgeCount: badgeCount
         )
@@ -544,7 +542,7 @@ class CupertinoButtonNSView: NSView {
     )
     
     let hostingController = NSHostingController(rootView: AnyView(swiftUIButton))
-    hostingController.view.layer?.backgroundColor = .clear
+    hostingController.view.layer?.backgroundColor = NSColor.clear.cgColor
     self.hostingController = hostingController
     
     hostingController.view.translatesAutoresizingMaskIntoConstraints = false
