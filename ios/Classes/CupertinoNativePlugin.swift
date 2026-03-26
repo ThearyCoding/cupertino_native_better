@@ -77,6 +77,18 @@ public class CupertinoNativePlugin: NSObject, FlutterPlugin {
         CNTransitionObserver.shared.endTransition()
       }
       result(nil)
+    case "showNativeDialog":
+      guard let args = call.arguments as? [String: Any] else {
+        result(
+          FlutterError(
+            code: "INVALID_ARGS",
+            message: "Dialog args are required",
+            details: nil
+          )
+        )
+        return
+      }
+      CNNativeDialogPresenter.shared.show(args: args, result: result)
     default:
       result(FlutterMethodNotImplemented)
     }

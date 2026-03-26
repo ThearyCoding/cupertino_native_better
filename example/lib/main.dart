@@ -14,6 +14,7 @@ import 'demos/native_tab_bar_demo.dart';
 import 'demos/bottom_nav_test.dart';
 import 'demos/bottom_nav_indexed_test.dart';
 import 'demos/bottom_nav_custom_icons_test.dart';
+import 'demos/dialog.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -204,6 +205,21 @@ class HomePage extends StatelessWidget {
                 onTap: () {
                   Navigator.of(context).push(
                     CupertinoPageRoute(builder: (_) => const ButtonDemoPage()),
+                  );
+                },
+              ),
+              CupertinoListTile(
+                title: Text('Native Dialog'),
+                leading: CNIcon(
+                  symbol: CNSymbol(
+                    'rectangle.on.rectangle.angled',
+                    color: accentColor,
+                  ),
+                ),
+                trailing: CupertinoListTileChevron(),
+                onTap: () {
+                  Navigator.of(context).push(
+                    CupertinoPageRoute(builder: (_) => const DialogDemoPage()),
                   );
                 },
               ),
