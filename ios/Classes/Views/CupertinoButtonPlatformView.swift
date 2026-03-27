@@ -15,6 +15,9 @@ class CupertinoButtonPlatformView: NSObject, FlutterPlatformView {
   private var currentButtonStyle: String = "automatic"
   private var usesSwiftUI: Bool = false
   private var makeRound: Bool = false
+  private var currentFontWeight: Int? = nil
+  private var currentFontSize: CGFloat? = nil
+  private var currentFontFamily: String? = nil
 
   init(frame: CGRect, viewId: Int64, args: Any?, messenger: FlutterBinaryMessenger) {
     self.channel = FlutterMethodChannel(name: "CupertinoNativeButton_\(viewId)", binaryMessenger: messenger)
@@ -52,6 +55,9 @@ class CupertinoButtonPlatformView: NSObject, FlutterPlatformView {
     var glassEffectInteractive: Bool = false
     var badgeCount: Int? = nil
     var interaction: Bool = true
+    var fontWeight: Int? = nil
+    var fontSize: CGFloat? = nil
+    var fontFamily: String? = nil
 
     if let dict = args as? [String: Any] {
       if let t = dict["buttonTitle"] as? String { title = t }
@@ -91,11 +97,17 @@ class CupertinoButtonPlatformView: NSObject, FlutterPlatformView {
       if let geInteractive = dict["glassEffectInteractive"] as? NSNumber { glassEffectInteractive = geInteractive.boolValue }
       if let bc = dict["badgeCount"] as? NSNumber { badgeCount = bc.intValue }
       if let inter = dict["interaction"] as? NSNumber { interaction = inter.boolValue }
+      if let fw = dict["buttonFontWeight"] as? NSNumber { fontWeight = fw.intValue }
+      if let fs = dict["buttonFontSize"] as? NSNumber { fontSize = CGFloat(truncating: fs) }
+      if let ff = dict["buttonFontFamily"] as? String { fontFamily = ff }
     }
 
     super.init()
 
     self.isInteractive = interaction
+    self.currentFontWeight = fontWeight
+    self.currentFontSize = fontSize
+    self.currentFontFamily = fontFamily
     container.backgroundColor = .clear
     if #available(iOS 13.0, *) { container.overrideUserInterfaceStyle = isDark ? .dark : .light }
 
@@ -215,7 +227,10 @@ class CupertinoButtonPlatformView: NSObject, FlutterPlatformView {
         paddingVertical: paddingVertical,
         minHeight: minHeight,
         spacing: imagePadding,
-        badgeCount: badgeCount
+        badgeCount: badgeCount,
+        fontWeight: fontWeight,
+        fontSize: fontSize,
+        fontFamily: fontFamily
       )
     } else {
       // Use UIKit button for standard implementation
@@ -261,6 +276,7 @@ class CupertinoButtonPlatformView: NSObject, FlutterPlatformView {
       imagePadding: imagePadding,
       horizontalPadding: calculatedHorizontalPadding
     )
+    applyTextStyle(fontWeight: fontWeight, fontSize: fontSize, fontFamily: fontFamily)
 
     // Default system highlight/pressed behavior
       uiButton.addTarget(self, action: #selector(onPressed(_:)), for: .touchUpInside)
@@ -345,8 +361,30 @@ class CupertinoButtonPlatformView: NSObject, FlutterPlatformView {
       case "setButtonTitle":
         if let args = call.arguments as? [String: Any], let t = args["title"] as? String {
           self.setButtonContent(title: t, image: nil, iconOnly: false, imagePlacement: nil, imagePadding: nil, horizontalPadding: nil)
+          self.applyTextStyle(
+            fontWeight: self.currentFontWeight,
+            fontSize: self.currentFontSize,
+            fontFamily: self.currentFontFamily
+          )
           result(nil)
         } else { result(FlutterError(code: "bad_args", message: "Missing title", details: nil)) }
+      case "setTextStyle":
+        if let args = call.arguments as? [String: Any] {
+          let fontWeight = args["fontWeight"] as? Int
+          let fontSize = (args["fontSize"] as? NSNumber).map { CGFloat(truncating: $0) }
+          let fontFamily = args["fontFamily"] as? String
+          self.currentFontWeight = fontWeight
+          self.currentFontSize = fontSize
+          self.currentFontFamily = fontFamily
+          self.applyTextStyle(fontWeight: fontWeight, fontSize: fontSize, fontFamily: fontFamily)
+          result(nil)
+        } else {
+          self.currentFontWeight = nil
+          self.currentFontSize = nil
+          self.currentFontFamily = nil
+          self.applyTextStyle(fontWeight: nil, fontSize: nil, fontFamily: nil)
+          result(nil)
+        }
       case "setButtonIcon":
         if let args = call.arguments as? [String: Any] {
           var image: UIImage? = nil
@@ -559,7 +597,10 @@ class CupertinoButtonPlatformView: NSObject, FlutterPlatformView {
     paddingVertical: CGFloat?,
     minHeight: CGFloat?,
     spacing: CGFloat?,
-    badgeCount: Int?
+    badgeCount: Int?,
+    fontWeight: Int?,
+    fontSize: CGFloat?,
+    fontFamily: String?
   ) {
     // Create GlassButtonConfig with provided values or defaults
     let config = GlassButtonConfig(
@@ -594,6 +635,9 @@ class CupertinoButtonPlatformView: NSObject, FlutterPlatformView {
       let glassEffectInteractive: Bool
       let config: GlassButtonConfig
       let badgeCount: Int?
+      let fontWeight: Font.Weight?
+      let fontSize: CGFloat?
+      let fontFamily: String?
 
       var body: some View {
         GlassButtonSwiftUI(
@@ -613,7 +657,10 @@ class CupertinoButtonPlatformView: NSObject, FlutterPlatformView {
           glassEffectInteractive: glassEffectInteractive,
           namespace: namespace,
           config: config,
-          badgeCount: badgeCount
+          badgeCount: badgeCount,
+          fontWeight: fontWeight,
+          fontSize: fontSize,
+          fontFamily: fontFamily
         )
       }
     }
@@ -636,7 +683,10 @@ class CupertinoButtonPlatformView: NSObject, FlutterPlatformView {
       glassEffectId: glassEffectId,
       glassEffectInteractive: glassEffectInteractive,
       config: config,
-      badgeCount: badgeCount
+      badgeCount: badgeCount,
+      fontWeight: fontWeightFromInt(fontWeight),
+      fontSize: fontSize,
+      fontFamily: fontFamily
     )
     
     let hostingController = UIHostingController(rootView: AnyView(swiftUIButton))
@@ -805,6 +855,60 @@ class CupertinoButtonPlatformView: NSObject, FlutterPlatformView {
       } else if let padding = horizontalPadding {
         button.contentEdgeInsets = UIEdgeInsets(top: 0, left: padding, bottom: 0, right: padding)
       }
+    }
+  }
+
+  private func applyTextStyle(fontWeight: Int?, fontSize: CGFloat?, fontFamily: String?) {
+    guard let button = self.button, !usesSwiftUI else { return }
+    let weight = Self.uiFontWeight(from: fontWeight)
+    let resolvedSize = fontSize ?? button.titleLabel?.font.pointSize ?? UIFont.buttonFontSize
+    let font: UIFont
+    if let family = fontFamily, let custom = UIFont(name: family, size: resolvedSize) {
+      font = custom
+    } else {
+      font = UIFont.systemFont(ofSize: resolvedSize, weight: weight)
+    }
+    if #available(iOS 15.0, *) {
+      var cfg = button.configuration ?? .plain()
+      cfg.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attrs in
+        var attrs = attrs
+        attrs.font = font
+        return attrs
+      }
+      button.configuration = cfg
+    } else {
+      button.titleLabel?.font = font
+    }
+  }
+
+  private func fontWeightFromInt(_ weight: Int?) -> Font.Weight? {
+    guard let weight = weight else { return nil }
+    switch weight {
+    case 100: return .ultraLight
+    case 200: return .thin
+    case 300: return .light
+    case 400: return .regular
+    case 500: return .medium
+    case 600: return .semibold
+    case 700: return .bold
+    case 800: return .heavy
+    case 900: return .black
+    default: return .regular
+    }
+  }
+
+  private static func uiFontWeight(from weight: Int?) -> UIFont.Weight {
+    switch weight ?? 400 {
+    case 100: return .ultraLight
+    case 200: return .thin
+    case 300: return .light
+    case 400: return .regular
+    case 500: return .medium
+    case 600: return .semibold
+    case 700: return .bold
+    case 800: return .heavy
+    case 900: return .black
+    default: return .regular
     }
   }
 

@@ -82,6 +82,22 @@ class CNButtonConfig {
   /// When limited, text will be truncated with ellipsis if too long.
   final int? maxLines;
 
+  /// Optional font weight for button text.
+  ///
+  /// When provided, this overrides the default system font weight.
+  final FontWeight? fontWeight;
+
+  /// Optional font size for button text.
+  ///
+  /// When provided, this overrides the default system font size.
+  final double? fontSize;
+
+  /// Optional font family for button text.
+  ///
+  /// The font must be registered in the app (Info.plist on iOS/macOS or
+  /// via Flutter assets). When null, the system font is used.
+  final String? fontFamily;
+
   /// Size for custom icons (when using `customIcon`).
   ///
   /// If null, defaults to 20.0 points.
@@ -113,6 +129,9 @@ class CNButtonConfig {
     this.glassEffectId,
     this.glassEffectInteractive = true,
     this.maxLines = 1,
+    this.fontWeight,
+    this.fontSize,
+    this.fontFamily,
     this.customIconSize,
     this.interaction = true,
   });
@@ -230,6 +249,9 @@ class _CNButtonState extends State<CNButton> {
   IconData? _lastCustomIcon;
   int? _lastBadgeCount;
   bool? _lastInteraction;
+  int? _lastFontWeight;
+  double? _lastFontSize;
+  String? _lastFontFamily;
   Offset? _downPosition;
   bool _pressed = false;
 
@@ -237,6 +259,34 @@ class _CNButtonState extends State<CNButton> {
 
   Color? get _effectiveTint =>
       widget.tint ?? ThemeHelper.getPrimaryColor(context);
+
+  int? get _fontWeightValue => _fontWeightToInt(widget.config.fontWeight);
+
+  int? _fontWeightToInt(FontWeight? weight) {
+    if (weight == null) return null;
+    switch (weight) {
+      case FontWeight.w100:
+        return 100;
+      case FontWeight.w200:
+        return 200;
+      case FontWeight.w300:
+        return 300;
+      case FontWeight.w400:
+        return 400;
+      case FontWeight.w500:
+        return 500;
+      case FontWeight.w600:
+        return 600;
+      case FontWeight.w700:
+        return 700;
+      case FontWeight.w800:
+        return 800;
+      case FontWeight.w900:
+        return 900;
+      default:
+        return 400;
+    }
+  }
 
   @override
   void dispose() {
@@ -448,6 +498,10 @@ class _CNButtonState extends State<CNButton> {
       if (widget.config.glassEffectId != null)
         'glassEffectId': widget.config.glassEffectId,
       'glassEffectInteractive': widget.config.glassEffectInteractive,
+      if (_fontWeightValue != null) 'buttonFontWeight': _fontWeightValue,
+      if (widget.config.fontSize != null) 'buttonFontSize': widget.config.fontSize,
+      if (widget.config.fontFamily != null)
+        'buttonFontFamily': widget.config.fontFamily,
       if (widget.badgeCount != null) 'badgeCount': widget.badgeCount,
       'interaction': widget.config.interaction,
     };
@@ -591,6 +645,9 @@ class _CNButtonState extends State<CNButton> {
     _lastCustomIcon = widget.customIcon;
     _lastBadgeCount = widget.badgeCount;
     _lastInteraction = widget.config.interaction;
+    _lastFontWeight = _fontWeightValue;
+    _lastFontSize = widget.config.fontSize;
+    _lastFontFamily = widget.config.fontFamily;
     // Always request intrinsic size to get both width and height
     // Use a small delay to ensure native view has finished layout
     Future.delayed(const Duration(milliseconds: 10), () {
@@ -894,6 +951,29 @@ class _CNButtonState extends State<CNButton> {
       });
       _lastInteraction = widget.config.interaction;
     }
+
+    // Sync text style
+    final fontWeightValue = _fontWeightValue;
+    if (_lastFontWeight != fontWeightValue ||
+        _lastFontSize != widget.config.fontSize ||
+        _lastFontFamily != widget.config.fontFamily) {
+      if (fontWeightValue != null ||
+          widget.config.fontSize != null ||
+          widget.config.fontFamily != null) {
+        await ch.invokeMethod('setTextStyle', {
+          if (fontWeightValue != null) 'fontWeight': fontWeightValue,
+          if (widget.config.fontSize != null)
+            'fontSize': widget.config.fontSize,
+          if (widget.config.fontFamily != null)
+            'fontFamily': widget.config.fontFamily,
+        });
+      } else {
+        await ch.invokeMethod('setTextStyle', null);
+      }
+      _lastFontWeight = fontWeightValue;
+      _lastFontSize = widget.config.fontSize;
+      _lastFontFamily = widget.config.fontFamily;
+    }
   }
 
   Future<void> _syncBrightnessIfNeeded() async {
@@ -968,6 +1048,11 @@ class _CNButtonState extends State<CNButton> {
                   overflow: widget.config.maxLines != null
                       ? TextOverflow.ellipsis
                       : null,
+                  style: TextStyle(
+                    fontWeight: widget.config.fontWeight,
+                    fontSize: widget.config.fontSize,
+                    fontFamily: widget.config.fontFamily,
+                  ),
                 ),
               ],
             );
@@ -982,6 +1067,11 @@ class _CNButtonState extends State<CNButton> {
                   overflow: widget.config.maxLines != null
                       ? TextOverflow.ellipsis
                       : null,
+                  style: TextStyle(
+                    fontWeight: widget.config.fontWeight,
+                    fontSize: widget.config.fontSize,
+                    fontFamily: widget.config.fontFamily,
+                  ),
                 ),
                 if (widget.config.imagePadding != null)
                   SizedBox(width: widget.config.imagePadding!),
@@ -1002,6 +1092,11 @@ class _CNButtonState extends State<CNButton> {
                   overflow: widget.config.maxLines != null
                       ? TextOverflow.ellipsis
                       : null,
+                  style: TextStyle(
+                    fontWeight: widget.config.fontWeight,
+                    fontSize: widget.config.fontSize,
+                    fontFamily: widget.config.fontFamily,
+                  ),
                 ),
               ],
             );
@@ -1016,6 +1111,11 @@ class _CNButtonState extends State<CNButton> {
                   overflow: widget.config.maxLines != null
                       ? TextOverflow.ellipsis
                       : null,
+                  style: TextStyle(
+                    fontWeight: widget.config.fontWeight,
+                    fontSize: widget.config.fontSize,
+                    fontFamily: widget.config.fontFamily,
+                  ),
                 ),
                 if (widget.config.imagePadding != null)
                   SizedBox(height: widget.config.imagePadding!),
@@ -1031,6 +1131,11 @@ class _CNButtonState extends State<CNButton> {
           overflow: widget.config.maxLines != null
               ? TextOverflow.ellipsis
               : null,
+          style: TextStyle(
+            fontWeight: widget.config.fontWeight,
+            fontSize: widget.config.fontSize,
+            fontFamily: widget.config.fontFamily,
+          ),
         );
       }
     }
@@ -1158,6 +1263,11 @@ class _CNButtonState extends State<CNButton> {
                   overflow: widget.config.maxLines != null
                       ? TextOverflow.ellipsis
                       : null,
+                  style: TextStyle(
+                    fontWeight: widget.config.fontWeight,
+                    fontSize: widget.config.fontSize,
+                    fontFamily: widget.config.fontFamily,
+                  ),
                 ),
               ],
             );
@@ -1172,6 +1282,11 @@ class _CNButtonState extends State<CNButton> {
                   overflow: widget.config.maxLines != null
                       ? TextOverflow.ellipsis
                       : null,
+                  style: TextStyle(
+                    fontWeight: widget.config.fontWeight,
+                    fontSize: widget.config.fontSize,
+                    fontFamily: widget.config.fontFamily,
+                  ),
                 ),
                 if (widget.config.imagePadding != null)
                   SizedBox(width: widget.config.imagePadding!),
@@ -1192,6 +1307,11 @@ class _CNButtonState extends State<CNButton> {
                   overflow: widget.config.maxLines != null
                       ? TextOverflow.ellipsis
                       : null,
+                  style: TextStyle(
+                    fontWeight: widget.config.fontWeight,
+                    fontSize: widget.config.fontSize,
+                    fontFamily: widget.config.fontFamily,
+                  ),
                 ),
               ],
             );
@@ -1206,6 +1326,11 @@ class _CNButtonState extends State<CNButton> {
                   overflow: widget.config.maxLines != null
                       ? TextOverflow.ellipsis
                       : null,
+                  style: TextStyle(
+                    fontWeight: widget.config.fontWeight,
+                    fontSize: widget.config.fontSize,
+                    fontFamily: widget.config.fontFamily,
+                  ),
                 ),
                 if (widget.config.imagePadding != null)
                   SizedBox(height: widget.config.imagePadding!),
@@ -1221,6 +1346,11 @@ class _CNButtonState extends State<CNButton> {
           overflow: widget.config.maxLines != null
               ? TextOverflow.ellipsis
               : null,
+          style: TextStyle(
+            fontWeight: widget.config.fontWeight,
+            fontSize: widget.config.fontSize,
+            fontFamily: widget.config.fontFamily,
+          ),
         );
       }
     }

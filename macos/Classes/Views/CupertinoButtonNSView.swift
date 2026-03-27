@@ -12,6 +12,9 @@ class CupertinoButtonNSView: NSView {
   private var currentButtonStyle: String = "automatic"
   private var usesSwiftUI: Bool = false
   private var makeRound: Bool = false
+  private var currentFontWeight: Int? = nil
+  private var currentFontSize: CGFloat? = nil
+  private var currentFontFamily: String? = nil
 
   init(viewId: Int64, args: Any?, messenger: FlutterBinaryMessenger) {
     self.channel = FlutterMethodChannel(name: "CupertinoNativeButton_\(viewId)", binaryMessenger: messenger)
@@ -41,6 +44,9 @@ class CupertinoButtonNSView: NSView {
     var minHeight: CGFloat? = nil
     var imagePadding: CGFloat? = nil
     var badgeCount: Int? = nil
+    var fontWeight: Int? = nil
+    var fontSize: CGFloat? = nil
+    var fontFamily: String? = nil
 
     if let dict = args as? [String: Any] {
       if let t = dict["buttonTitle"] as? String { title = t }
@@ -70,11 +76,17 @@ class CupertinoButtonNSView: NSView {
       if let mh = dict["minHeight"] as? NSNumber { minHeight = CGFloat(truncating: mh) }
       if let ip = dict["imagePadding"] as? NSNumber { imagePadding = CGFloat(truncating: ip) }
       if let bc = dict["badgeCount"] as? NSNumber { badgeCount = bc.intValue }
+      if let fw = dict["buttonFontWeight"] as? NSNumber { fontWeight = fw.intValue }
+      if let fs = dict["buttonFontSize"] as? NSNumber { fontSize = CGFloat(truncating: fs) }
+      if let ff = dict["buttonFontFamily"] as? String { fontFamily = ff }
     }
 
     wantsLayer = true
     layer?.backgroundColor = NSColor.clear.cgColor
     appearance = NSAppearance(named: isDark ? .darkAqua : .aqua)
+    currentFontWeight = fontWeight
+    currentFontSize = fontSize
+    currentFontFamily = fontFamily
 
     // Check if we should use SwiftUI for full glass effect support
     if #available(macOS 26.0, *), (glassEffectUnionId != nil || glassEffectId != nil) {
@@ -106,7 +118,10 @@ class CupertinoButtonNSView: NSView {
         paddingHorizontal: paddingHorizontal,
         paddingVertical: paddingVertical,
         minHeight: minHeight,
-        spacing: imagePadding
+        spacing: imagePadding,
+        fontWeight: fontWeight,
+        fontSize: fontSize,
+        fontFamily: fontFamily
       )
     } else {
       // Use AppKit button for standard implementation
@@ -186,6 +201,9 @@ class CupertinoButtonNSView: NSView {
     currentButtonStyle = buttonStyle
       nsButton.isEnabled = enabled
     isEnabled = enabled
+      if fontWeight != nil || fontSize != nil || fontFamily != nil {
+        applyTextStyle(fontWeight: fontWeight, fontSize: fontSize, fontFamily: fontFamily)
+      }
 
       addSubview(nsButton)
       nsButton.translatesAutoresizingMaskIntoConstraints = false
@@ -302,27 +320,29 @@ class CupertinoButtonNSView: NSView {
           let fontSize = (args["fontSize"] as? NSNumber).map { CGFloat(truncating: $0) }
           let fontWeight = args["fontWeight"] as? Int
           let fontFamily = args["fontFamily"] as? String
+          self.currentFontWeight = fontWeight
+          self.currentFontSize = fontSize
+          self.currentFontFamily = fontFamily
           
           var font: NSFont? = nil
-          if let fontSize = fontSize {
-            if let fontFamily = fontFamily, let customFont = NSFont(name: fontFamily, size: fontSize) {
-              font = customFont
-            } else {
-              let weight: NSFont.Weight
-              switch fontWeight ?? 400 {
-              case 100: weight = .ultraLight
-              case 200: weight = .thin
-              case 300: weight = .light
-              case 400: weight = .regular
-              case 500: weight = .medium
-              case 600: weight = .semibold
-              case 700: weight = .bold
-              case 800: weight = .heavy
-              case 900: weight = .black
-              default: weight = .regular
-              }
-              font = NSFont.systemFont(ofSize: fontSize, weight: weight)
+          let resolvedSize = fontSize ?? button?.font?.pointSize ?? NSFont.systemFontSize
+          if let fontFamily = fontFamily, let customFont = NSFont(name: fontFamily, size: resolvedSize) {
+            font = customFont
+          } else {
+            let weight: NSFont.Weight
+            switch fontWeight ?? 400 {
+            case 100: weight = .ultraLight
+            case 200: weight = .thin
+            case 300: weight = .light
+            case 400: weight = .regular
+            case 500: weight = .medium
+            case 600: weight = .semibold
+            case 700: weight = .bold
+            case 800: weight = .heavy
+            case 900: weight = .black
+            default: weight = .regular
             }
+            font = NSFont.systemFont(ofSize: resolvedSize, weight: weight)
           }
           
           if !usesSwiftUI, let button = self.button, !button.title.isEmpty {
@@ -342,6 +362,9 @@ class CupertinoButtonNSView: NSView {
           if !usesSwiftUI, let button = self.button {
             button.attributedTitle = NSAttributedString(string: button.title)
           }
+          self.currentFontWeight = nil
+          self.currentFontSize = nil
+          self.currentFontFamily = nil
           result(nil)
         }
       case "setHorizontalPadding":
@@ -441,6 +464,50 @@ class CupertinoButtonNSView: NSView {
     guard isEnabled else { return }
     channel.invokeMethod("pressed", arguments: nil)
   }
+
+  private func applyTextStyle(fontWeight: Int?, fontSize: CGFloat?, fontFamily: String?) {
+    guard !usesSwiftUI, let button = self.button, !button.title.isEmpty else { return }
+    let size = fontSize ?? button.font?.pointSize ?? NSFont.systemFontSize
+    let weight: NSFont.Weight
+    switch fontWeight ?? 400 {
+    case 100: weight = .ultraLight
+    case 200: weight = .thin
+    case 300: weight = .light
+    case 400: weight = .regular
+    case 500: weight = .medium
+    case 600: weight = .semibold
+    case 700: weight = .bold
+    case 800: weight = .heavy
+    case 900: weight = .black
+    default: weight = .regular
+    }
+    let font: NSFont
+    if let family = fontFamily, let customFont = NSFont(name: family, size: size) {
+      font = customFont
+    } else {
+      font = NSFont.systemFont(ofSize: size, weight: weight)
+    }
+    let title = button.title
+    let attrString = NSMutableAttributedString(string: title)
+    attrString.addAttribute(.font, value: font, range: NSRange(location: 0, length: title.count))
+    button.attributedTitle = attrString
+  }
+
+  private func fontWeightFromInt(_ weight: Int?) -> Font.Weight? {
+    guard let weight = weight else { return nil }
+    switch weight {
+    case 100: return .ultraLight
+    case 200: return .thin
+    case 300: return .light
+    case 400: return .regular
+    case 500: return .medium
+    case 600: return .semibold
+    case 700: return .bold
+    case 800: return .heavy
+    case 900: return .black
+    default: return .regular
+    }
+  }
   
   @available(macOS 26.0, *)
   private func setupSwiftUIButton(
@@ -465,7 +532,10 @@ class CupertinoButtonNSView: NSView {
     paddingVertical: CGFloat?,
     minHeight: CGFloat?,
     spacing: CGFloat?,
-    badgeCount: Int? = nil
+    badgeCount: Int? = nil,
+    fontWeight: Int? = nil,
+    fontSize: CGFloat? = nil,
+    fontFamily: String? = nil
   ) {
     // Create GlassButtonConfig with provided values or defaults
     let config = GlassButtonConfig(
@@ -499,6 +569,9 @@ class CupertinoButtonNSView: NSView {
       let glassEffectInteractive: Bool
       let config: GlassButtonConfig
       let badgeCount: Int?
+      let fontWeight: Font.Weight?
+      let fontSize: CGFloat?
+      let fontFamily: String?
 
       var body: some View {
         GlassButtonSwiftUI(
@@ -516,7 +589,10 @@ class CupertinoButtonNSView: NSView {
           glassEffectId: glassEffectId,
           glassEffectInteractive: glassEffectInteractive,
           config: config,
-          badgeCount: badgeCount
+          badgeCount: badgeCount,
+          fontWeight: fontWeight,
+          fontSize: fontSize,
+          fontFamily: fontFamily
         )
       }
     }
@@ -538,7 +614,10 @@ class CupertinoButtonNSView: NSView {
       glassEffectId: glassEffectId,
       glassEffectInteractive: glassEffectInteractive,
       config: config,
-      badgeCount: badgeCount
+      badgeCount: badgeCount,
+      fontWeight: fontWeightFromInt(fontWeight),
+      fontSize: fontSize,
+      fontFamily: fontFamily
     )
     
     let hostingController = NSHostingController(rootView: AnyView(swiftUIButton))
