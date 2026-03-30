@@ -1,6 +1,6 @@
 import Flutter
-import UIKit
 import SVGKit
+import UIKit
 
 class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelegate {
   private let channel: FlutterMethodChannel
@@ -8,7 +8,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
   private var tabBar: UITabBar?
   private var tabBarLeft: UITabBar?
   private var tabBarRight: UITabBar?
-  
+
   // MARK: - State Properties
   private var isSplit: Bool = false
   private var rightCountVal: Int = 1
@@ -27,13 +27,14 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
   private var iconScale: CGFloat = UIScreen.main.scale
   private var leftInsetVal: CGFloat = 0
   private var rightInsetVal: CGFloat = 0
-  private var splitSpacingVal: CGFloat = 12 // Apple's recommended spacing for visual separation
-  private var currentIconSizes: [CGFloat] = [] // Track icon sizes for dynamic height calculation
+  private var splitSpacingVal: CGFloat = 12  // Apple's recommended spacing for visual separation
+  private var currentIconSizes: [CGFloat] = []  // Track icon sizes for dynamic height calculation
   private var labelFontFamily: String? = nil
-  private var labelFontSize: CGFloat = 0 // 0 means system default (~10pt)
+  private var labelFontSize: CGFloat = 0  // 0 means system default (~10pt)
 
   init(frame: CGRect, viewId: Int64, args: Any?, messenger: FlutterBinaryMessenger) {
-    self.channel = FlutterMethodChannel(name: "CupertinoNativeTabBar_\(viewId)", binaryMessenger: messenger)
+    self.channel = FlutterMethodChannel(
+      name: "CupertinoNativeTabBar_\(viewId)", binaryMessenger: messenger)
     self.container = UIView(frame: frame)
 
     var labels: [String] = []
@@ -50,7 +51,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
     var activeImageAssetFormats: [String] = []
     var iconScale: CGFloat = UIScreen.main.scale
     var sizes: [NSNumber?] = []
-    var colors: [NSNumber] = [] // ignored; use tintColor
+    var colors: [NSNumber] = []  // ignored; use tintColor
     var selectedIndex: Int = 0
     var isDark: Bool = false
     var tint: UIColor? = nil
@@ -113,9 +114,9 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
     if #available(iOS 26.0, *) {
       container.clipsToBounds = false
     } else {
-      container.clipsToBounds = true // Prevent shadow leakage on older iOS
+      container.clipsToBounds = true  // Prevent shadow leakage on older iOS
     }
-    container.layer.shadowOpacity = 0 // Explicitly disable layer shadow
+    container.layer.shadowOpacity = 0  // Explicitly disable layer shadow
     if #available(iOS 13.0, *) { container.overrideUserInterfaceStyle = isDark ? .dark : .light }
 
     let appearance: UITabBarAppearance? = {
@@ -129,12 +130,18 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         var selectedImage: UIImage? = nil
 
         // Extract size for this item from sizes array
-        let imgSize: CGSize? = (i < sizes.count) ? sizes[i].flatMap { $0.doubleValue > 0 ? CGSize(width: $0.doubleValue, height: $0.doubleValue) : nil } : nil
+        let imgSize: CGSize? =
+          (i < sizes.count)
+          ? sizes[i].flatMap {
+            $0.doubleValue > 0 ? CGSize(width: $0.doubleValue, height: $0.doubleValue) : nil
+          } : nil
 
         // Priority: imageAsset > customIconBytes > SF Symbol
         // Unselected image
         if i < imageAssetData.count, let data = imageAssetData[i] {
-          image = Self.createImageFromData(data, format: (i < imageAssetFormats.count) ? imageAssetFormats[i] : nil, scale: iconScale, size: imgSize)
+          image = Self.createImageFromData(
+            data, format: (i < imageAssetFormats.count) ? imageAssetFormats[i] : nil,
+            scale: iconScale, size: imgSize)
         } else if i < imageAssetPaths.count && !imageAssetPaths[i].isEmpty {
           image = Self.loadFlutterAsset(imageAssetPaths[i], size: imgSize)
         } else if i < customIconBytes.count, let data = customIconBytes[i] {
@@ -151,11 +158,14 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
 
         // Selected image: Use active versions if available
         if i < activeImageAssetData.count, let data = activeImageAssetData[i] {
-          selectedImage = Self.createImageFromData(data, format: (i < activeImageAssetFormats.count) ? activeImageAssetFormats[i] : nil, scale: iconScale, size: imgSize)
+          selectedImage = Self.createImageFromData(
+            data, format: (i < activeImageAssetFormats.count) ? activeImageAssetFormats[i] : nil,
+            scale: iconScale, size: imgSize)
         } else if i < activeImageAssetPaths.count && !activeImageAssetPaths[i].isEmpty {
           selectedImage = Self.loadFlutterAsset(activeImageAssetPaths[i], size: imgSize)
         } else if i < activeCustomIconBytes.count, let data = activeCustomIconBytes[i] {
-          selectedImage = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(.alwaysTemplate)
+          selectedImage = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(
+            .alwaysTemplate)
         } else if i < activeSymbols.count && !activeSymbols[i].isEmpty {
           // Apply size configuration if specified
           if i < sizes.count, let sizeNum = sizes[i], sizeNum.doubleValue > 0 {
@@ -165,7 +175,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
             selectedImage = UIImage(systemName: activeSymbols[i])
           }
         } else {
-          selectedImage = image // Fallback to same image
+          selectedImage = image  // Fallback to same image
         }
 
         let title = (i < labels.count && !labels[i].isEmpty) ? labels[i] : nil
@@ -188,21 +198,41 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
       let leftEnd = count - rightCount
       let left = UITabBar(frame: .zero)
       let right = UITabBar(frame: .zero)
-      tabBarLeft = left; tabBarRight = right
+      tabBarLeft = left
+      tabBarRight = right
       left.translatesAutoresizingMaskIntoConstraints = false
       right.translatesAutoresizingMaskIntoConstraints = false
       // On iOS 26+, allow overflow for Liquid Glass pill effect
       if #available(iOS 26.0, *) {
-        left.clipsToBounds = false; right.clipsToBounds = false
+        left.clipsToBounds = false
+        right.clipsToBounds = false
       } else {
-        left.clipsToBounds = true; right.clipsToBounds = true // Prevent shadow leakage
+        left.clipsToBounds = true
+        right.clipsToBounds = true  // Prevent shadow leakage
       }
-      left.layer.shadowOpacity = 0; right.layer.shadowOpacity = 0
-      left.delegate = self; right.delegate = self
-      if let bg = bg { left.barTintColor = bg; right.barTintColor = bg }
-      if #available(iOS 10.0, *), let tint = tint { left.tintColor = tint; right.tintColor = tint }
-      if let ap = appearance { if #available(iOS 13.0, *) { left.standardAppearance = ap; right.standardAppearance = ap; if #available(iOS 15.0, *) { left.scrollEdgeAppearance = ap; right.scrollEdgeAppearance = ap } } }
-      
+      left.layer.shadowOpacity = 0
+      right.layer.shadowOpacity = 0
+      left.delegate = self
+      right.delegate = self
+      if let bg = bg {
+        left.barTintColor = bg
+        right.barTintColor = bg
+      }
+      if #available(iOS 10.0, *), let tint = tint {
+        left.tintColor = tint
+        right.tintColor = tint
+      }
+      if let ap = appearance {
+        if #available(iOS 13.0, *) {
+          left.standardAppearance = ap
+          right.standardAppearance = ap
+          if #available(iOS 15.0, *) {
+            left.scrollEdgeAppearance = ap
+            right.scrollEdgeAppearance = ap
+          }
+        }
+      }
+
       left.items = buildItems(0..<leftEnd)
       right.items = buildItems(leftEnd..<count)
       if selectedIndex < leftEnd, let items = left.items {
@@ -213,20 +243,21 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         if idx >= 0 && idx < items.count { right.selectedItem = items[idx] }
         left.selectedItem = nil
       }
-      container.addSubview(left); container.addSubview(right)
+      container.addSubview(left)
+      container.addSubview(right)
       // Compute content-fitting widths for both bars and apply symmetric spacing
       let spacing: CGFloat = splitSpacingVal
       let leftWidth = left.sizeThatFits(.zero).width + leftInset * 2
       let rightWidth = right.sizeThatFits(.zero).width + rightInset * 2
       let total = leftWidth + rightWidth + spacing
-      
+
       // Ensure minimum width for single items to maintain circular shape
       // Following Apple's HIG: minimum 44pt touch target, with 8pt spacing
-      let minItemWidth: CGFloat = 44.0 // Apple's minimum touch target size
+      let minItemWidth: CGFloat = 44.0  // Apple's minimum touch target size
       let adjustedRightWidth = max(rightWidth, minItemWidth * CGFloat(rightCount))
       let adjustedLeftWidth = max(leftWidth, minItemWidth * CGFloat(count - rightCount))
       let adjustedTotal = adjustedLeftWidth + adjustedRightWidth + spacing
-      
+
       // If total exceeds container, fall back to proportional widths
       if adjustedTotal > container.bounds.width {
         let rightFraction = CGFloat(rightCount) / CGFloat(count)
@@ -253,7 +284,8 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
           left.bottomAnchor.constraint(equalTo: container.bottomAnchor),
           left.widthAnchor.constraint(equalToConstant: adjustedLeftWidth),
           // Spacing between
-          left.trailingAnchor.constraint(lessThanOrEqualTo: right.leadingAnchor, constant: -spacing),
+          left.trailingAnchor.constraint(
+            lessThanOrEqualTo: right.leadingAnchor, constant: -spacing),
         ])
       }
       // Force layout update for background and text rendering on iOS < 16
@@ -275,7 +307,9 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         left.items = leftItems
         right.items = rightItems
         // Restore selection after re-assigning items (re-assignment can reset selection)
-        if capturedSelectedIndex < capturedLeftEnd, let items = left.items, capturedSelectedIndex < items.count {
+        if capturedSelectedIndex < capturedLeftEnd, let items = left.items,
+          capturedSelectedIndex < items.count
+        {
           left.selectedItem = items[capturedSelectedIndex]
           right.selectedItem = nil
         } else if let items = right.items {
@@ -305,14 +339,21 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
       if #available(iOS 26.0, *) {
         bar.clipsToBounds = false
       } else {
-        bar.clipsToBounds = true // Prevent shadow leakage on older iOS
+        bar.clipsToBounds = true  // Prevent shadow leakage on older iOS
       }
       bar.layer.shadowOpacity = 0
       if let bg = bg { bar.barTintColor = bg }
       if #available(iOS 10.0, *), let tint = tint { bar.tintColor = tint }
-      if let ap = appearance { if #available(iOS 13.0, *) { bar.standardAppearance = ap; if #available(iOS 15.0, *) { bar.scrollEdgeAppearance = ap } } }
+      if let ap = appearance {
+        if #available(iOS 13.0, *) {
+          bar.standardAppearance = ap
+          if #available(iOS 15.0, *) { bar.scrollEdgeAppearance = ap }
+        }
+      }
       bar.items = buildItems(0..<count)
-      if selectedIndex >= 0, let items = bar.items, selectedIndex < items.count { bar.selectedItem = items[selectedIndex] }
+      if selectedIndex >= 0, let items = bar.items, selectedIndex < items.count {
+        bar.selectedItem = items[selectedIndex]
+      }
       container.addSubview(bar)
       NSLayoutConstraint.activate([
         bar.leadingAnchor.constraint(equalTo: container.leadingAnchor),
@@ -359,17 +400,24 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
     self.leftInsetVal = leftInset
     self.rightInsetVal = rightInset
     self.currentIconSizes = sizes.compactMap { $0 }.map { CGFloat(truncating: $0) }
+    
     // Read custom label font from creation params
     if let dict = args as? [String: Any] {
       if let ff = dict["labelFontFamily"] as? String, !ff.isEmpty { self.labelFontFamily = ff }
-      if let fs = dict["labelFontSize"] as? NSNumber, fs.doubleValue > 0 { self.labelFontSize = CGFloat(truncating: fs) }
+      if let fs = dict["labelFontSize"] as? NSNumber, fs.doubleValue > 0 {
+        self.labelFontSize = CGFloat(truncating: fs)
+      }
     }
-channel.setMethodCallHandler { [weak self] call, result in
-      guard let self = self else { result(nil); return }
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self = self else {
+        result(nil)
+        return
+      }
       switch call.method {
       case "getIntrinsicSize":
         if let bar = self.tabBar ?? self.tabBarLeft ?? self.tabBarRight {
-          let size = bar.sizeThatFits(CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude))
+          let size = bar.sizeThatFits(
+            CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude))
           // Adjust height for larger icons - default icon is ~25pt, default height is ~49pt
           let defaultIconSize: CGFloat = 25.0
           let maxIconSize = self.currentIconSizes.max() ?? defaultIconSize
@@ -435,16 +483,23 @@ channel.setMethodCallHandler { [weak self] call, result in
               var selectedImage: UIImage? = nil
 
               // Extract size for this item from sizes array
-              let imgSize: CGSize? = (i < sizes.count) ? sizes[i].flatMap { $0.doubleValue > 0 ? CGSize(width: $0.doubleValue, height: $0.doubleValue) : nil } : nil
+              let imgSize: CGSize? =
+                (i < sizes.count)
+                ? sizes[i].flatMap {
+                  $0.doubleValue > 0 ? CGSize(width: $0.doubleValue, height: $0.doubleValue) : nil
+                } : nil
 
               // Priority: imageAsset > customIconBytes > SF Symbol
               // Unselected image
               if i < imageAssetData.count, let data = imageAssetData[i] {
-                image = Self.createImageFromData(data, format: (i < imageAssetFormats.count) ? imageAssetFormats[i] : nil, scale: self.iconScale, size: imgSize)
+                image = Self.createImageFromData(
+                  data, format: (i < imageAssetFormats.count) ? imageAssetFormats[i] : nil,
+                  scale: self.iconScale, size: imgSize)
               } else if i < imageAssetPaths.count && !imageAssetPaths[i].isEmpty {
                 image = Self.loadFlutterAsset(imageAssetPaths[i], size: imgSize)
               } else if i < customIconBytes.count, let data = customIconBytes[i] {
-                image = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(.alwaysTemplate)
+                image = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(
+                  .alwaysTemplate)
               } else if i < symbols.count && !symbols[i].isEmpty {
                 // Apply size configuration if specified
                 if i < sizes.count, let sizeNum = sizes[i], sizeNum.doubleValue > 0 {
@@ -457,11 +512,15 @@ channel.setMethodCallHandler { [weak self] call, result in
 
               // Selected image: Use active versions if available
               if i < activeImageAssetData.count, let data = activeImageAssetData[i] {
-                selectedImage = Self.createImageFromData(data, format: (i < activeImageAssetFormats.count) ? activeImageAssetFormats[i] : nil, scale: self.iconScale, size: imgSize)
+                selectedImage = Self.createImageFromData(
+                  data,
+                  format: (i < activeImageAssetFormats.count) ? activeImageAssetFormats[i] : nil,
+                  scale: self.iconScale, size: imgSize)
               } else if i < activeImageAssetPaths.count && !activeImageAssetPaths[i].isEmpty {
                 selectedImage = Self.loadFlutterAsset(activeImageAssetPaths[i], size: imgSize)
               } else if i < activeCustomIconBytes.count, let data = activeCustomIconBytes[i] {
-                selectedImage = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(.alwaysTemplate)
+                selectedImage = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(
+                  .alwaysTemplate)
               } else if i < activeSymbols.count && !activeSymbols[i].isEmpty {
                 // Apply size configuration if specified
                 if i < sizes.count, let sizeNum = sizes[i], sizeNum.doubleValue > 0 {
@@ -471,7 +530,7 @@ channel.setMethodCallHandler { [weak self] call, result in
                   selectedImage = UIImage(systemName: activeSymbols[i])
                 }
               } else {
-                selectedImage = image // Fallback to same image
+                selectedImage = image  // Fallback to same image
               }
 
               let title = (i < labels.count && !labels[i].isEmpty) ? labels[i] : nil
@@ -492,24 +551,36 @@ channel.setMethodCallHandler { [weak self] call, result in
             return items
           }
           let count = max(labels.count, symbols.count)
-          if self.isSplit && count > self.rightCountVal, let left = self.tabBarLeft, let right = self.tabBarRight {
+          if self.isSplit && count > self.rightCountVal, let left = self.tabBarLeft,
+            let right = self.tabBarRight
+          {
             let leftEnd = count - self.rightCountVal
             left.items = buildItems(0..<leftEnd)
             right.items = buildItems(leftEnd..<count)
-            if selectedIndex < leftEnd, let items = left.items { left.selectedItem = items[selectedIndex]; right.selectedItem = nil }
-            else if let items = right.items {
+            if selectedIndex < leftEnd, let items = left.items {
+              left.selectedItem = items[selectedIndex]
+              right.selectedItem = nil
+            } else if let items = right.items {
               let idx = selectedIndex - leftEnd
-              if idx >= 0 && idx < items.count { right.selectedItem = items[idx]; left.selectedItem = nil }
+              if idx >= 0 && idx < items.count {
+                right.selectedItem = items[idx]
+                left.selectedItem = nil
+              }
             }
             result(nil)
           } else if let bar = self.tabBar {
             bar.items = buildItems(0..<count)
-            if let items = bar.items, selectedIndex >= 0, selectedIndex < items.count { bar.selectedItem = items[selectedIndex] }
+            if let items = bar.items, selectedIndex >= 0, selectedIndex < items.count {
+              bar.selectedItem = items[selectedIndex]
+            }
             result(nil)
           } else {
-            result(FlutterError(code: "state_error", message: "Tab bars not initialized", details: nil))
+            result(
+              FlutterError(code: "state_error", message: "Tab bars not initialized", details: nil))
           }
-        } else { result(FlutterError(code: "bad_args", message: "Missing items", details: nil)) }
+        } else {
+          result(FlutterError(code: "bad_args", message: "Missing items", details: nil))
+        }
       case "setLayout":
         if let args = call.arguments as? [String: Any] {
           let split = (args["split"] as? NSNumber)?.boolValue ?? false
@@ -517,12 +588,17 @@ channel.setMethodCallHandler { [weak self] call, result in
           // Insets are controlled by Flutter padding; keep stored zeros here
           let leftInset = self.leftInsetVal
           let rightInset = self.rightInsetVal
-          if let sp = args["splitSpacing"] as? NSNumber { self.splitSpacingVal = CGFloat(truncating: sp) }
+          if let sp = args["splitSpacing"] as? NSNumber {
+            self.splitSpacingVal = CGFloat(truncating: sp)
+          }
           let selectedIndex = (args["selectedIndex"] as? NSNumber)?.intValue ?? 0
           // Remove existing bars
-          self.tabBar?.removeFromSuperview(); self.tabBar = nil
-          self.tabBarLeft?.removeFromSuperview(); self.tabBarLeft = nil
-          self.tabBarRight?.removeFromSuperview(); self.tabBarRight = nil
+          self.tabBar?.removeFromSuperview()
+          self.tabBar = nil
+          self.tabBarLeft?.removeFromSuperview()
+          self.tabBarLeft = nil
+          self.tabBarRight?.removeFromSuperview()
+          self.tabBarRight = nil
           let labels = self.currentLabels
           let symbols = self.currentSymbols
           let activeSymbols = self.currentActiveSymbols
@@ -547,16 +623,21 @@ channel.setMethodCallHandler { [weak self] call, result in
               var selectedImage: UIImage? = nil
 
               // Extract size for this item from stored icon sizes
-              let imgSize: CGSize? = (i < iconSizes.count && iconSizes[i] > 0) ? CGSize(width: iconSizes[i], height: iconSizes[i]) : nil
+              let imgSize: CGSize? =
+                (i < iconSizes.count && iconSizes[i] > 0)
+                ? CGSize(width: iconSizes[i], height: iconSizes[i]) : nil
 
               // Priority: imageAsset > customIconBytes > SF Symbol
               // Unselected image
               if i < imageAssetData.count, let data = imageAssetData[i] {
-                image = Self.createImageFromData(data, format: (i < imageAssetFormats.count) ? imageAssetFormats[i] : nil, scale: self.iconScale, size: imgSize)
+                image = Self.createImageFromData(
+                  data, format: (i < imageAssetFormats.count) ? imageAssetFormats[i] : nil,
+                  scale: self.iconScale, size: imgSize)
               } else if i < imageAssetPaths.count && !imageAssetPaths[i].isEmpty {
                 image = Self.loadFlutterAsset(imageAssetPaths[i], size: imgSize)
               } else if i < customIconBytes.count, let data = customIconBytes[i] {
-                image = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(.alwaysTemplate)
+                image = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(
+                  .alwaysTemplate)
               } else if i < symbols.count && !symbols[i].isEmpty {
                 // Apply size configuration if stored
                 if i < iconSizes.count && iconSizes[i] > 0 {
@@ -569,11 +650,15 @@ channel.setMethodCallHandler { [weak self] call, result in
 
               // Selected image: Use active versions if available
               if i < activeImageAssetData.count, let data = activeImageAssetData[i] {
-                selectedImage = Self.createImageFromData(data, format: (i < activeImageAssetFormats.count) ? activeImageAssetFormats[i] : nil, scale: self.iconScale, size: imgSize)
+                selectedImage = Self.createImageFromData(
+                  data,
+                  format: (i < activeImageAssetFormats.count) ? activeImageAssetFormats[i] : nil,
+                  scale: self.iconScale, size: imgSize)
               } else if i < activeImageAssetPaths.count && !activeImageAssetPaths[i].isEmpty {
                 selectedImage = Self.loadFlutterAsset(activeImageAssetPaths[i], size: imgSize)
               } else if i < activeCustomIconBytes.count, let data = activeCustomIconBytes[i] {
-                selectedImage = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(.alwaysTemplate)
+                selectedImage = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(
+                  .alwaysTemplate)
               } else if i < activeSymbols.count && !activeSymbols[i].isEmpty {
                 // Apply size configuration if stored
                 if i < iconSizes.count && iconSizes[i] > 0 {
@@ -583,7 +668,7 @@ channel.setMethodCallHandler { [weak self] call, result in
                   selectedImage = UIImage(systemName: activeSymbols[i])
                 }
               } else {
-                selectedImage = image // Fallback to same image
+                selectedImage = image  // Fallback to same image
               }
 
               let title = (i < labels.count && !labels[i].isEmpty) ? labels[i] : nil
@@ -600,57 +685,86 @@ channel.setMethodCallHandler { [weak self] call, result in
             let leftEnd = count - rightCount
             let left = UITabBar(frame: .zero)
             let right = UITabBar(frame: .zero)
-            self.tabBarLeft = left; self.tabBarRight = right
+            self.tabBarLeft = left
+            self.tabBarRight = right
             left.translatesAutoresizingMaskIntoConstraints = false
             right.translatesAutoresizingMaskIntoConstraints = false
             // On iOS 26+, allow overflow for Liquid Glass pill effect
             if #available(iOS 26.0, *) {
-              left.clipsToBounds = false; right.clipsToBounds = false
+              left.clipsToBounds = false
+              right.clipsToBounds = false
             } else {
-              left.clipsToBounds = true; right.clipsToBounds = true
+              left.clipsToBounds = true
+              right.clipsToBounds = true
             }
-            left.layer.shadowOpacity = 0; right.layer.shadowOpacity = 0
-            left.delegate = self; right.delegate = self
-            if let ap = appearance { if #available(iOS 13.0, *) { left.standardAppearance = ap; right.standardAppearance = ap; if #available(iOS 15.0, *) { left.scrollEdgeAppearance = ap; right.scrollEdgeAppearance = ap } } }
+            left.layer.shadowOpacity = 0
+            right.layer.shadowOpacity = 0
+            left.delegate = self
+            right.delegate = self
+            if let ap = appearance {
+              if #available(iOS 13.0, *) {
+                left.standardAppearance = ap
+                right.standardAppearance = ap
+                if #available(iOS 15.0, *) {
+                  left.scrollEdgeAppearance = ap
+                  right.scrollEdgeAppearance = ap
+                }
+              }
+            }
             left.items = buildItems(0..<leftEnd)
             right.items = buildItems(leftEnd..<count)
-            if selectedIndex < leftEnd, let items = left.items { left.selectedItem = items[selectedIndex]; right.selectedItem = nil }
-            else if let items = right.items { let idx = selectedIndex - leftEnd; if idx >= 0 && idx < items.count { right.selectedItem = items[idx]; left.selectedItem = nil } }
-            self.container.addSubview(left); self.container.addSubview(right)
+            if selectedIndex < leftEnd, let items = left.items {
+              left.selectedItem = items[selectedIndex]
+              right.selectedItem = nil
+            } else if let items = right.items {
+              let idx = selectedIndex - leftEnd
+              if idx >= 0 && idx < items.count {
+                right.selectedItem = items[idx]
+                left.selectedItem = nil
+              }
+            }
+            self.container.addSubview(left)
+            self.container.addSubview(right)
             let spacing: CGFloat = splitSpacingVal
             let leftWidth = left.sizeThatFits(.zero).width + leftInset * 2
             let rightWidth = right.sizeThatFits(.zero).width + rightInset * 2
             let total = leftWidth + rightWidth + spacing
-            
+
             // Ensure minimum width for single items to maintain circular shape
-            let minItemWidth: CGFloat = 50.0 // Minimum width per item
+            let minItemWidth: CGFloat = 50.0  // Minimum width per item
             let adjustedRightWidth = max(rightWidth, minItemWidth * CGFloat(rightCount))
             let adjustedLeftWidth = max(leftWidth, minItemWidth * CGFloat(count - rightCount))
             let adjustedTotal = adjustedLeftWidth + adjustedRightWidth + spacing
-            
+
             if adjustedTotal > self.container.bounds.width {
               let rightFraction = CGFloat(rightCount) / CGFloat(count)
               NSLayoutConstraint.activate([
-                right.trailingAnchor.constraint(equalTo: self.container.trailingAnchor, constant: -rightInset),
+                right.trailingAnchor.constraint(
+                  equalTo: self.container.trailingAnchor, constant: -rightInset),
                 right.topAnchor.constraint(equalTo: self.container.topAnchor),
                 right.bottomAnchor.constraint(equalTo: self.container.bottomAnchor),
-                right.widthAnchor.constraint(equalTo: self.container.widthAnchor, multiplier: rightFraction),
-                left.leadingAnchor.constraint(equalTo: self.container.leadingAnchor, constant: leftInset),
+                right.widthAnchor.constraint(
+                  equalTo: self.container.widthAnchor, multiplier: rightFraction),
+                left.leadingAnchor.constraint(
+                  equalTo: self.container.leadingAnchor, constant: leftInset),
                 left.trailingAnchor.constraint(equalTo: right.leadingAnchor, constant: -spacing),
                 left.topAnchor.constraint(equalTo: self.container.topAnchor),
                 left.bottomAnchor.constraint(equalTo: self.container.bottomAnchor),
               ])
             } else {
               NSLayoutConstraint.activate([
-                right.trailingAnchor.constraint(equalTo: self.container.trailingAnchor, constant: -rightInset),
+                right.trailingAnchor.constraint(
+                  equalTo: self.container.trailingAnchor, constant: -rightInset),
                 right.topAnchor.constraint(equalTo: self.container.topAnchor),
                 right.bottomAnchor.constraint(equalTo: self.container.bottomAnchor),
                 right.widthAnchor.constraint(equalToConstant: adjustedRightWidth),
-                left.leadingAnchor.constraint(equalTo: self.container.leadingAnchor, constant: leftInset),
+                left.leadingAnchor.constraint(
+                  equalTo: self.container.leadingAnchor, constant: leftInset),
                 left.topAnchor.constraint(equalTo: self.container.topAnchor),
                 left.bottomAnchor.constraint(equalTo: self.container.bottomAnchor),
                 left.widthAnchor.constraint(equalToConstant: adjustedLeftWidth),
-                left.trailingAnchor.constraint(lessThanOrEqualTo: right.leadingAnchor, constant: -spacing),
+                left.trailingAnchor.constraint(
+                  lessThanOrEqualTo: right.leadingAnchor, constant: -spacing),
               ])
             }
             // Force layout update for background and text rendering on iOS < 16
@@ -672,7 +786,9 @@ channel.setMethodCallHandler { [weak self] call, result in
               left.items = leftItems
               right.items = rightItems
               // Restore selection after re-assigning items (re-assignment can reset selection)
-              if capturedSelectedIndex < capturedLeftEnd, let items = left.items, capturedSelectedIndex < items.count {
+              if capturedSelectedIndex < capturedLeftEnd, let items = left.items,
+                capturedSelectedIndex < items.count
+              {
                 left.selectedItem = items[capturedSelectedIndex]
                 right.selectedItem = nil
               } else if let items = right.items {
@@ -705,9 +821,16 @@ channel.setMethodCallHandler { [weak self] call, result in
               bar.clipsToBounds = true
             }
             bar.layer.shadowOpacity = 0
-            if let ap = appearance { if #available(iOS 13.0, *) { bar.standardAppearance = ap; if #available(iOS 15.0, *) { bar.scrollEdgeAppearance = ap } } }
+            if let ap = appearance {
+              if #available(iOS 13.0, *) {
+                bar.standardAppearance = ap
+                if #available(iOS 15.0, *) { bar.scrollEdgeAppearance = ap }
+              }
+            }
             bar.items = buildItems(0..<count)
-            if let items = bar.items, selectedIndex >= 0, selectedIndex < items.count { bar.selectedItem = items[selectedIndex] }
+            if let items = bar.items, selectedIndex >= 0, selectedIndex < items.count {
+              bar.selectedItem = items[selectedIndex]
+            }
             self.container.addSubview(bar)
             NSLayoutConstraint.activate([
               bar.leadingAnchor.constraint(equalTo: self.container.leadingAnchor),
@@ -735,37 +858,79 @@ channel.setMethodCallHandler { [weak self] call, result in
               }
             }
           }
-          self.isSplit = split; self.rightCountVal = rightCount; self.leftInsetVal = leftInset; self.rightInsetVal = rightInset
+          self.isSplit = split
+          self.rightCountVal = rightCount
+          self.leftInsetVal = leftInset
+          self.rightInsetVal = rightInset
           result(nil)
-        } else { result(FlutterError(code: "bad_args", message: "Missing layout", details: nil)) }
+        } else {
+          result(FlutterError(code: "bad_args", message: "Missing layout", details: nil))
+        }
       case "setSelectedIndex":
-        if let args = call.arguments as? [String: Any], let idx = (args["index"] as? NSNumber)?.intValue {
+        if let args = call.arguments as? [String: Any],
+          let idx = (args["index"] as? NSNumber)?.intValue
+        {
+          // Check if this is the initial set (no animation)
+          let isInitial = (args["isInitial"] as? Bool) ?? false
+
           // Single bar
           if let bar = self.tabBar, let items = bar.items, idx >= 0, idx < items.count {
-            bar.selectedItem = items[idx]
+            if isInitial {
+              // Set without animation for initial setup
+              UIView.performWithoutAnimation {
+                bar.selectedItem = items[idx]
+                bar.setNeedsLayout()
+                bar.layoutIfNeeded()
+              }
+            } else {
+              bar.selectedItem = items[idx]
+            }
             result(nil)
             return
           }
+
           // Split bars
           if let left = self.tabBarLeft, let leftItems = left.items {
             if idx < leftItems.count, idx >= 0 {
-              left.selectedItem = leftItems[idx]
-              self.tabBarRight?.selectedItem = nil
+              if isInitial {
+                UIView.performWithoutAnimation {
+                  left.selectedItem = leftItems[idx]
+                  self.tabBarRight?.selectedItem = nil
+                  left.setNeedsLayout()
+                  left.layoutIfNeeded()
+                }
+              } else {
+                left.selectedItem = leftItems[idx]
+                self.tabBarRight?.selectedItem = nil
+              }
               result(nil)
               return
             }
+
             if let right = self.tabBarRight, let rightItems = right.items {
               let ridx = idx - leftItems.count
               if ridx >= 0, ridx < rightItems.count {
-                right.selectedItem = rightItems[ridx]
-                self.tabBarLeft?.selectedItem = nil
+                if isInitial {
+                  UIView.performWithoutAnimation {
+                    right.selectedItem = rightItems[ridx]
+                    self.tabBarLeft?.selectedItem = nil
+                    right.setNeedsLayout()
+                    right.layoutIfNeeded()
+                  }
+                } else {
+                  right.selectedItem = rightItems[ridx]
+                  self.tabBarLeft?.selectedItem = nil
+                }
                 result(nil)
                 return
               }
             }
           }
+
           result(FlutterError(code: "bad_args", message: "Index out of range", details: nil))
-        } else { result(FlutterError(code: "bad_args", message: "Missing index", details: nil)) }
+        } else {
+          result(FlutterError(code: "bad_args", message: "Missing index", details: nil))
+        }
       case "setStyle":
         if let args = call.arguments as? [String: Any] {
           if let n = args["tint"] as? NSNumber {
@@ -781,12 +946,20 @@ channel.setMethodCallHandler { [weak self] call, result in
             if let right = self.tabBarRight { right.barTintColor = c }
           }
           result(nil)
-        } else { result(FlutterError(code: "bad_args", message: "Missing style", details: nil)) }
+        } else {
+          result(FlutterError(code: "bad_args", message: "Missing style", details: nil))
+        }
       case "setBrightness":
-        if let args = call.arguments as? [String: Any], let isDark = (args["isDark"] as? NSNumber)?.boolValue {
-          if #available(iOS 13.0, *) { self.container.overrideUserInterfaceStyle = isDark ? .dark : .light }
+        if let args = call.arguments as? [String: Any],
+          let isDark = (args["isDark"] as? NSNumber)?.boolValue
+        {
+          if #available(iOS 13.0, *) {
+            self.container.overrideUserInterfaceStyle = isDark ? .dark : .light
+          }
           result(nil)
-        } else { result(FlutterError(code: "bad_args", message: "Missing isDark", details: nil)) }
+        } else {
+          result(FlutterError(code: "bad_args", message: "Missing isDark", details: nil))
+        }
       case "setBadges":
         // Lightweight badge-only update without rebuilding items
         if let args = call.arguments as? [String: Any], let badges = args["badges"] as? [String] {
@@ -803,7 +976,8 @@ channel.setMethodCallHandler { [weak self] call, result in
           }
           // Update split bars
           if let left = self.tabBarLeft, let leftItems = left.items,
-             let right = self.tabBarRight, let rightItems = right.items {
+            let right = self.tabBarRight, let rightItems = right.items
+          {
             let leftEnd = leftItems.count
             for (i, item) in leftItems.enumerated() {
               if i < badges.count && !badges[i].isEmpty {
@@ -822,12 +996,18 @@ channel.setMethodCallHandler { [weak self] call, result in
             }
           }
           result(nil)
-        } else { result(FlutterError(code: "bad_args", message: "Missing badges", details: nil)) }
+        } else {
+          result(FlutterError(code: "bad_args", message: "Missing badges", details: nil))
+        }
       case "setFont":
         // Update label font and re-apply appearance to all tab bars
         if let args = call.arguments as? [String: Any] {
-          if let ff = args["labelFontFamily"] as? String { self.labelFontFamily = ff.isEmpty ? nil : ff }
-          if let fs = args["labelFontSize"] as? NSNumber, fs.doubleValue > 0 { self.labelFontSize = CGFloat(truncating: fs) }
+          if let ff = args["labelFontFamily"] as? String {
+            self.labelFontFamily = ff.isEmpty ? nil : ff
+          }
+          if let fs = args["labelFontSize"] as? NSNumber, fs.doubleValue > 0 {
+            self.labelFontSize = CGFloat(truncating: fs)
+          }
           if #available(iOS 13.0, *) {
             let ap = self.makeAppearance()
             if let bar = self.tabBar {
@@ -844,97 +1024,81 @@ channel.setMethodCallHandler { [weak self] call, result in
             }
           }
           result(nil)
-        } else { result(FlutterError(code: "bad_args", message: "Missing font args", details: nil)) }
+        } else {
+          result(FlutterError(code: "bad_args", message: "Missing font args", details: nil))
+        }
       case "refresh":
-        // Force refresh for label rendering on iOS < 16
-        // UITabBar only fully layouts labels when items are selected
-        // So we need to temporarily select each item to force layout
-        if let bar = self.tabBar, let items = bar.items, !items.isEmpty {
-          let originalSelected = bar.selectedItem
-          // Temporarily remove delegate to prevent callbacks during refresh
-          bar.delegate = nil
-          DispatchQueue.main.async { [weak self, weak bar, weak originalSelected] in
-            guard let self = self, let bar = bar, let items = bar.items, !items.isEmpty else { return }
-            // Cycle through each item to force label layout
-            var index = 0
-            func selectNext() {
-              guard index < items.count else {
-                // Restore original selection
-                if let original = originalSelected {
-                  bar.selectedItem = original
-                } else {
-                  bar.selectedItem = items.first
-                }
-                bar.setNeedsLayout()
-                bar.layoutIfNeeded()
-                // Restore delegate
-                bar.delegate = self
-                return
-              }
-              bar.selectedItem = items[index]
-              bar.setNeedsLayout()
-              bar.layoutIfNeeded()
-              index += 1
-              DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-                selectNext()
-              }
-            }
-            selectNext()
+        // CRITICAL FIX: Prevent unwanted tab switching during refresh
+        // Store the current selected item before refresh
+        let originalSelectedItem: UITabBarItem?
+        let originalLeftSelectedItem: UITabBarItem?
+        let originalRightSelectedItem: UITabBarItem?
+
+        if let bar = self.tabBar {
+          originalSelectedItem = bar.selectedItem
+          originalLeftSelectedItem = nil
+          originalRightSelectedItem = nil
+        } else if let left = self.tabBarLeft, let right = self.tabBarRight {
+          originalSelectedItem = nil
+          originalLeftSelectedItem = left.selectedItem
+          originalRightSelectedItem = right.selectedItem
+        } else {
+          originalSelectedItem = nil
+          originalLeftSelectedItem = nil
+          originalRightSelectedItem = nil
+        }
+
+        // Temporarily remove delegate to prevent callbacks during refresh
+        let originalDelegate = self.tabBar?.delegate
+        let originalLeftDelegate = self.tabBarLeft?.delegate
+        let originalRightDelegate = self.tabBarRight?.delegate
+
+        self.tabBar?.delegate = nil
+        self.tabBarLeft?.delegate = nil
+        self.tabBarRight?.delegate = nil
+
+        // Force layout update without changing selection
+        if let bar = self.tabBar {
+          bar.setNeedsLayout()
+          bar.layoutIfNeeded()
+
+          // Re-assign items to force label rendering
+          let items = bar.items
+          bar.items = items
+
+          // Restore original selection
+          if let originalItem = originalSelectedItem {
+            bar.selectedItem = originalItem
           }
         } else if let left = self.tabBarLeft, let right = self.tabBarRight {
-          let leftOriginal = left.selectedItem
-          let rightOriginal = right.selectedItem
-          // Temporarily remove delegates to prevent callbacks during refresh
-          left.delegate = nil
-          right.delegate = nil
-          DispatchQueue.main.async { [weak self, weak left, weak right, weak leftOriginal, weak rightOriginal] in
-            guard let self = self, let left = left, let right = right,
-                  let leftItems = left.items, let rightItems = right.items else { return }
-            
-            // Process left items
-            var leftIndex = 0
-            func selectNextLeft() {
-              if leftIndex < leftItems.count {
-                left.selectedItem = leftItems[leftIndex]
-                left.setNeedsLayout()
-                left.layoutIfNeeded()
-                leftIndex += 1
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-                  selectNextLeft()
-                }
-              } else {
-                // Restore original selection (nil means no selection on this bar)
-                left.selectedItem = leftOriginal
-                left.setNeedsLayout()
-                left.layoutIfNeeded()
+          left.setNeedsLayout()
+          left.layoutIfNeeded()
+          right.setNeedsLayout()
+          right.layoutIfNeeded()
 
-                // Process right items
-                var rightIndex = 0
-                func selectNextRight() {
-                  if rightIndex < rightItems.count {
-                    right.selectedItem = rightItems[rightIndex]
-                    right.setNeedsLayout()
-                    right.layoutIfNeeded()
-                    rightIndex += 1
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-                      selectNextRight()
-                    }
-                  } else {
-                    // Restore original selection (nil means no selection on this bar)
-                    right.selectedItem = rightOriginal
-                    right.setNeedsLayout()
-                    right.layoutIfNeeded()
-                    // Restore delegates
-                    left.delegate = self
-                    right.delegate = self
-                  }
-                }
-                selectNextRight()
-              }
-            }
-            selectNextLeft()
+          // Re-assign items to force label rendering
+          let leftItems = left.items
+          let rightItems = right.items
+          left.items = leftItems
+          right.items = rightItems
+
+          // Restore original selections
+          if let originalLeftItem = originalLeftSelectedItem {
+            left.selectedItem = originalLeftItem
+          }
+          if let originalRightItem = originalRightSelectedItem {
+            right.selectedItem = originalRightItem
           }
         }
+
+        // Restore delegates after refresh
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+          guard let self = self else { return }
+          self.tabBar?.delegate = originalDelegate
+          self.tabBarLeft?.delegate = originalLeftDelegate
+          self.tabBarRight?.delegate = originalRightDelegate
+        }
+
         result(nil)
       default:
         result(FlutterMethodNotImplemented)
@@ -974,24 +1138,29 @@ channel.setMethodCallHandler { [weak self] call, result in
 
   func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
     // Single bar case
-    if let single = self.tabBar, single === tabBar, let items = single.items, let idx = items.firstIndex(of: item) {
+    if let single = self.tabBar, single === tabBar, let items = single.items,
+      let idx = items.firstIndex(of: item)
+    {
       channel.invokeMethod("valueChanged", arguments: ["index": idx])
       return
     }
     // Split left
-    if let left = tabBarLeft, left === tabBar, let items = left.items, let idx = items.firstIndex(of: item) {
+    if let left = tabBarLeft, left === tabBar, let items = left.items,
+      let idx = items.firstIndex(of: item)
+    {
       tabBarRight?.selectedItem = nil
       channel.invokeMethod("valueChanged", arguments: ["index": idx])
       return
     }
     // Split right
-    if let right = tabBarRight, right === tabBar, let items = right.items, let idx = items.firstIndex(of: item), let left = tabBarLeft, let leftItems = left.items {
+    if let right = tabBarRight, right === tabBar, let items = right.items,
+      let idx = items.firstIndex(of: item), let left = tabBarLeft, let leftItems = left.items
+    {
       tabBarLeft?.selectedItem = nil
       channel.invokeMethod("valueChanged", arguments: ["index": leftItems.count + idx])
       return
     }
   }
-
 
   // Use shared utility functions
   private static func colorFromARGB(_ argb: Int) -> UIColor {
@@ -1002,9 +1171,62 @@ channel.setMethodCallHandler { [weak self] call, result in
     return ImageUtils.loadFlutterAsset(assetPath, size: size)
   }
 
-  private static func createImageFromData(_ data: Data, format: String?, scale: CGFloat, size: CGSize? = nil) -> UIImage? {
+  private static func createImageFromData(
+    _ data: Data, format: String?, scale: CGFloat, size: CGSize? = nil
+  ) -> UIImage? {
     return ImageUtils.createImageFromData(data, format: format, size: size, scale: scale)
   }
 
 }
 
+// Add this class extension or inside the CupertinoTabBarPlatformView class
+class CupertinoTabBarPreloader {
+    private static var preloadedTabBars: [String: UIView] = [:]
+    private static var preloadQueue = DispatchQueue(label: "com.cupertino.tabbar.preload")
+    
+    static func preloadTabBar(with args: [String: Any], for key: String) {
+        preloadQueue.async {
+            guard preloadedTabBars[key] == nil else { return }
+            
+            // Create a temporary view for preloading
+            let tempContainer = UIView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.width, height: 50))
+            
+            // Preload all assets
+            if let imageAssetPaths = args["imageAssetPaths"] as? [String] {
+                let allPaths = Set(imageAssetPaths).filter { !$0.isEmpty }
+                if !allPaths.isEmpty {
+                    SVGImageLoader.shared.preloadAssetsFromPaths(Array(allPaths))
+                }
+            }
+            
+            if let activeImageAssetPaths = args["activeImageAssetPaths"] as? [String] {
+                let allPaths = Set(activeImageAssetPaths).filter { !$0.isEmpty }
+                if !allPaths.isEmpty {
+                    SVGImageLoader.shared.preloadAssetsFromPaths(Array(allPaths))
+                }
+            }
+            
+            // Preload SF Symbols by creating them in background
+            if let symbols = args["sfSymbols"] as? [String] {
+                for symbol in symbols where !symbol.isEmpty {
+                    _ = UIImage(systemName: symbol)
+                }
+            }
+            
+            if let activeSymbols = args["activeSfSymbols"] as? [String] {
+                for symbol in activeSymbols where !symbol.isEmpty {
+                    _ = UIImage(systemName: symbol)
+                }
+            }
+            
+            // Store that we've preloaded
+            preloadedTabBars[key] = tempContainer
+        }
+    }
+    
+    static func clearPreload() {
+        preloadQueue.async {
+            preloadedTabBars.removeAll()
+        }
+    }
+}
