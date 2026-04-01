@@ -259,16 +259,10 @@ class _CNTabBarState extends State<CNTabBar> {
       _searchFocusNode = FocusNode();
     }
 
-    // // ADD THIS: Delay initial sync to avoid auto-switching
-    // WidgetsBinding.instance.addPostFrameCallback((_) {
-    //   if (mounted) {
-    //     _initialSyncDone = true;
-    //     _syncPropsToNativeIfNeeded();
-    //   }
-    // });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _initialSyncDone = true;
+        _syncPropsToNativeIfNeeded();
       }
     });
   }
@@ -876,9 +870,9 @@ class _CNTabBarState extends State<CNTabBar> {
     super.didChangeDependencies();
     _syncBrightnessIfNeeded();
     // Only sync if initial sync is done
-    // if (_initialSyncDone) {
-    //   _syncPropsToNativeIfNeeded(skipIndexUpdate: true);
-    // }
+    if (_initialSyncDone) {
+      _syncPropsToNativeIfNeeded(skipIndexUpdate: true);
+    }
   }
 
   Future<void> _syncBrightnessIfNeeded() async {
