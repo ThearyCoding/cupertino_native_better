@@ -27,10 +27,11 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
   private var iconScale: CGFloat = UIScreen.main.scale
   private var leftInsetVal: CGFloat = 0
   private var rightInsetVal: CGFloat = 0
-  private var splitSpacingVal: CGFloat = 12  // Apple's recommended spacing for visual separation
-  private var currentIconSizes: [CGFloat] = []  // Track icon sizes for dynamic height calculation
+  private var splitSpacingVal: CGFloat = 12
+  private var currentIconSizes: [CGFloat] = []
   private var labelFontFamily: String? = nil
-  private var labelFontSize: CGFloat = 0  // 0 means system default (~10pt)
+  private var labelFontSize: CGFloat = 0
+  private var hasPerformedInitialRefresh: Bool = false
 
   init(frame: CGRect, viewId: Int64, args: Any?, messenger: FlutterBinaryMessenger) {
     self.channel = FlutterMethodChannel(
@@ -51,7 +52,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
     var activeImageAssetFormats: [String] = []
     var iconScale: CGFloat = UIScreen.main.scale
     var sizes: [NSNumber?] = []
-    var colors: [NSNumber] = []  // ignored; use tintColor
+    var colors: [NSNumber] = []
     var selectedIndex: Int = 0
     var isDark: Bool = false
     var tint: UIColor? = nil
@@ -96,11 +97,8 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
       if let s = dict["split"] as? NSNumber { split = s.boolValue }
       if let rc = dict["rightCount"] as? NSNumber { rightCount = rc.intValue }
       if let sp = dict["splitSpacing"] as? NSNumber { splitSpacingVal = CGFloat(truncating: sp) }
-      // content insets controlled by Flutter padding; keep zero here
     }
-    // Font is read after super.init() below to use self.
 
-    // Preload SVG assets dynamically based on what's actually being used
     let allAssetPaths = Set(imageAssetPaths + activeImageAssetPaths).filter { !$0.isEmpty }
     if !allAssetPaths.isEmpty {
       SVGImageLoader.shared.preloadAssetsFromPaths(Array(allAssetPaths))
@@ -109,34 +107,31 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
     super.init()
 
     container.backgroundColor = .clear
-    // On iOS 26+, the Liquid Glass tab bar needs to overflow slightly for the pill effect
-    // On older iOS, keep clipsToBounds to prevent visual artifacts
     if #available(iOS 26.0, *) {
       container.clipsToBounds = false
     } else {
-      container.clipsToBounds = true  // Prevent shadow leakage on older iOS
+      container.clipsToBounds = true
     }
-    container.layer.shadowOpacity = 0  // Explicitly disable layer shadow
+    container.layer.shadowOpacity = 0
     if #available(iOS 13.0, *) { container.overrideUserInterfaceStyle = isDark ? .dark : .light }
 
     let appearance: UITabBarAppearance? = {
       if #available(iOS 13.0, *) { return self.makeAppearance() }
       return nil
     }()
+
     func buildItems(_ range: Range<Int>) -> [UITabBarItem] {
       var items: [UITabBarItem] = []
       for i in range {
         var image: UIImage? = nil
         var selectedImage: UIImage? = nil
 
-        // Extract size for this item from sizes array
         let imgSize: CGSize? =
           (i < sizes.count)
           ? sizes[i].flatMap {
             $0.doubleValue > 0 ? CGSize(width: $0.doubleValue, height: $0.doubleValue) : nil
           } : nil
 
-        // Priority: imageAsset > customIconBytes > SF Symbol
         // Unselected image
         if i < imageAssetData.count, let data = imageAssetData[i] {
           image = Self.createImageFromData(
@@ -147,7 +142,6 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         } else if i < customIconBytes.count, let data = customIconBytes[i] {
           image = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(.alwaysTemplate)
         } else if i < symbols.count && !symbols[i].isEmpty {
-          // Apply size configuration if specified
           if i < sizes.count, let sizeNum = sizes[i], sizeNum.doubleValue > 0 {
             let config = UIImage.SymbolConfiguration(pointSize: CGFloat(sizeNum.doubleValue))
             image = UIImage(systemName: symbols[i], withConfiguration: config)
@@ -156,7 +150,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
           }
         }
 
-        // Selected image: Use active versions if available
+        // Selected image
         if i < activeImageAssetData.count, let data = activeImageAssetData[i] {
           selectedImage = Self.createImageFromData(
             data, format: (i < activeImageAssetFormats.count) ? activeImageAssetFormats[i] : nil,
@@ -167,7 +161,6 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
           selectedImage = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(
             .alwaysTemplate)
         } else if i < activeSymbols.count && !activeSymbols[i].isEmpty {
-          // Apply size configuration if specified
           if i < sizes.count, let sizeNum = sizes[i], sizeNum.doubleValue > 0 {
             let config = UIImage.SymbolConfiguration(pointSize: CGFloat(sizeNum.doubleValue))
             selectedImage = UIImage(systemName: activeSymbols[i], withConfiguration: config)
@@ -175,7 +168,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
             selectedImage = UIImage(systemName: activeSymbols[i])
           }
         } else {
-          selectedImage = image  // Fallback to same image
+          selectedImage = image
         }
 
         let title = (i < labels.count && !labels[i].isEmpty) ? labels[i] : nil
@@ -183,8 +176,6 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         if i < badges.count && !badges[i].isEmpty {
           item.badgeValue = badges[i]
         }
-        // Adjust title position for larger icons to prevent overlap
-        // Default icon size is ~25pt
         if i < sizes.count, let sizeNum = sizes[i], sizeNum.doubleValue > 25 {
           let offset = CGFloat(sizeNum.doubleValue - 25)
           item.titlePositionAdjustment = UIOffset(horizontal: 0, vertical: offset)
@@ -193,6 +184,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
       }
       return items
     }
+
     let count = max(labels.count, symbols.count)
     if split && count > rightCount {
       let leftEnd = count - rightCount
@@ -202,13 +194,13 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
       tabBarRight = right
       left.translatesAutoresizingMaskIntoConstraints = false
       right.translatesAutoresizingMaskIntoConstraints = false
-      // On iOS 26+, allow overflow for Liquid Glass pill effect
+
       if #available(iOS 26.0, *) {
         left.clipsToBounds = false
         right.clipsToBounds = false
       } else {
         left.clipsToBounds = true
-        right.clipsToBounds = true  // Prevent shadow leakage
+        right.clipsToBounds = true
       }
       left.layer.shadowOpacity = 0
       right.layer.shadowOpacity = 0
@@ -222,6 +214,8 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         left.tintColor = tint
         right.tintColor = tint
       }
+
+      // CRITICAL: Set appearance BEFORE assigning items
       if let ap = appearance {
         if #available(iOS 13.0, *) {
           left.standardAppearance = ap
@@ -235,6 +229,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
 
       left.items = buildItems(0..<leftEnd)
       right.items = buildItems(leftEnd..<count)
+
       if selectedIndex < leftEnd, let items = left.items {
         left.selectedItem = items[selectedIndex]
         right.selectedItem = nil
@@ -243,22 +238,18 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         if idx >= 0 && idx < items.count { right.selectedItem = items[idx] }
         left.selectedItem = nil
       }
+
       container.addSubview(left)
       container.addSubview(right)
-      // Compute content-fitting widths for both bars and apply symmetric spacing
+
       let spacing: CGFloat = splitSpacingVal
       let leftWidth = left.sizeThatFits(.zero).width + leftInset * 2
       let rightWidth = right.sizeThatFits(.zero).width + rightInset * 2
-      let total = leftWidth + rightWidth + spacing
-
-      // Ensure minimum width for single items to maintain circular shape
-      // Following Apple's HIG: minimum 44pt touch target, with 8pt spacing
-      let minItemWidth: CGFloat = 44.0  // Apple's minimum touch target size
+      let minItemWidth: CGFloat = 44.0
       let adjustedRightWidth = max(rightWidth, minItemWidth * CGFloat(rightCount))
       let adjustedLeftWidth = max(leftWidth, minItemWidth * CGFloat(count - rightCount))
       let adjustedTotal = adjustedLeftWidth + adjustedRightWidth + spacing
 
-      // If total exceeds container, fall back to proportional widths
       if adjustedTotal > container.bounds.width {
         let rightFraction = CGFloat(rightCount) / CGFloat(count)
         NSLayoutConstraint.activate([
@@ -273,40 +264,53 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         ])
       } else {
         NSLayoutConstraint.activate([
-          // Right bar fixed width, pinned to trailing
           right.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -rightInset),
           right.topAnchor.constraint(equalTo: container.topAnchor),
           right.bottomAnchor.constraint(equalTo: container.bottomAnchor),
           right.widthAnchor.constraint(equalToConstant: adjustedRightWidth),
-          // Left bar fixed width, pinned to leading
           left.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: leftInset),
           left.topAnchor.constraint(equalTo: container.topAnchor),
           left.bottomAnchor.constraint(equalTo: container.bottomAnchor),
           left.widthAnchor.constraint(equalToConstant: adjustedLeftWidth),
-          // Spacing between
           left.trailingAnchor.constraint(
             lessThanOrEqualTo: right.leadingAnchor, constant: -spacing),
         ])
       }
-      // Force layout update for background and text rendering on iOS < 16
-      // Re-assign items after layout to ensure labels render properly
-      // Capture selectedIndex for restoration after item re-assignment
+
+      // Force layout and text rendering
       let capturedSelectedIndex = selectedIndex
       let capturedLeftEnd = leftEnd
       DispatchQueue.main.async { [weak self, weak left, weak right] in
         guard let self = self, let left = left, let right = right else { return }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        // Force appearance update again
+        if #available(iOS 13.0, *) {
+          let ap = self.makeAppearance()
+          left.standardAppearance = ap
+          right.standardAppearance = ap
+          if #available(iOS 15.0, *) {
+            left.scrollEdgeAppearance = ap
+            right.scrollEdgeAppearance = ap
+          }
+        }
+
         self.container.setNeedsLayout()
         self.container.layoutIfNeeded()
         left.setNeedsLayout()
         left.layoutIfNeeded()
         right.setNeedsLayout()
         right.layoutIfNeeded()
+
         // Re-assign items to force label rendering
         let leftItems = left.items
         let rightItems = right.items
         left.items = leftItems
         right.items = rightItems
-        // Restore selection after re-assigning items (re-assignment can reset selection)
+
+        // Restore selection
         if capturedSelectedIndex < capturedLeftEnd, let items = left.items,
           capturedSelectedIndex < items.count
         {
@@ -319,69 +323,97 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
             left.selectedItem = nil
           }
         }
-        // Force another update cycle for text rendering
-        DispatchQueue.main.async { [weak left, weak right] in
-          guard let left = left, let right = right else { return }
-          left.setNeedsDisplay()
-          right.setNeedsDisplay()
-          left.setNeedsLayout()
-          left.layoutIfNeeded()
-          right.setNeedsLayout()
-          right.layoutIfNeeded()
-        }
+
+        // Force display update
+        left.setNeedsDisplay()
+        right.setNeedsDisplay()
+
+        CATransaction.commit()
       }
+
+      // ADD THIS: Force initial refresh after split bar creation
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+        guard let self = self, !self.hasPerformedInitialRefresh else { return }
+        self.hasPerformedInitialRefresh = true
+        self.forceInitialLabelRefresh()
+      }
+
     } else {
       let bar = UITabBar(frame: .zero)
       tabBar = bar
       bar.delegate = self
       bar.translatesAutoresizingMaskIntoConstraints = false
-      // On iOS 26+, allow overflow for Liquid Glass pill effect
+
       if #available(iOS 26.0, *) {
         bar.clipsToBounds = false
       } else {
-        bar.clipsToBounds = true  // Prevent shadow leakage on older iOS
+        bar.clipsToBounds = true
       }
       bar.layer.shadowOpacity = 0
       if let bg = bg { bar.barTintColor = bg }
       if #available(iOS 10.0, *), let tint = tint { bar.tintColor = tint }
+
+      // CRITICAL: Set appearance BEFORE assigning items
       if let ap = appearance {
         if #available(iOS 13.0, *) {
           bar.standardAppearance = ap
           if #available(iOS 15.0, *) { bar.scrollEdgeAppearance = ap }
         }
       }
+
       bar.items = buildItems(0..<count)
       if selectedIndex >= 0, let items = bar.items, selectedIndex < items.count {
         bar.selectedItem = items[selectedIndex]
       }
       container.addSubview(bar)
+
       NSLayoutConstraint.activate([
         bar.leadingAnchor.constraint(equalTo: container.leadingAnchor),
         bar.trailingAnchor.constraint(equalTo: container.trailingAnchor),
         bar.topAnchor.constraint(equalTo: container.topAnchor),
         bar.bottomAnchor.constraint(equalTo: container.bottomAnchor),
       ])
-      // Force layout update for background and text rendering on iOS < 16
-      // Re-assign items after layout to ensure labels render properly
+
+      // Force layout and text rendering
       DispatchQueue.main.async { [weak self, weak bar] in
         guard let self = self, let bar = bar else { return }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        // Force appearance update again
+        if #available(iOS 13.0, *) {
+          let ap = self.makeAppearance()
+          bar.standardAppearance = ap
+          if #available(iOS 15.0, *) {
+            bar.scrollEdgeAppearance = ap
+          }
+        }
+
         self.container.setNeedsLayout()
         self.container.layoutIfNeeded()
         bar.setNeedsLayout()
         bar.layoutIfNeeded()
+
         // Re-assign items to force label rendering
         let items = bar.items
         bar.items = items
-        // Force another update cycle for text rendering
-        DispatchQueue.main.async { [weak bar] in
-          guard let bar = bar else { return }
-          bar.setNeedsDisplay()
-          bar.setNeedsLayout()
-          bar.layoutIfNeeded()
-        }
+
+        // Force display update
+        bar.setNeedsDisplay()
+
+        CATransaction.commit()
+      }
+
+      // ADD THIS: Force initial refresh after single bar creation
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+        guard let self = self, !self.hasPerformedInitialRefresh else { return }
+        self.hasPerformedInitialRefresh = true
+        self.forceInitialLabelRefresh()
       }
     }
-    // Store split settings for future updates
+
+    // Store state
     self.isSplit = split
     self.rightCountVal = rightCount
     self.currentLabels = labels
@@ -400,14 +432,14 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
     self.leftInsetVal = leftInset
     self.rightInsetVal = rightInset
     self.currentIconSizes = sizes.compactMap { $0 }.map { CGFloat(truncating: $0) }
-    
-    // Read custom label font from creation params
+
     if let dict = args as? [String: Any] {
       if let ff = dict["labelFontFamily"] as? String, !ff.isEmpty { self.labelFontFamily = ff }
       if let fs = dict["labelFontSize"] as? NSNumber, fs.doubleValue > 0 {
         self.labelFontSize = CGFloat(truncating: fs)
       }
     }
+
     channel.setMethodCallHandler { [weak self] call, result in
       guard let self = self else {
         result(nil)
@@ -418,7 +450,6 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         if let bar = self.tabBar ?? self.tabBarLeft ?? self.tabBarRight {
           let size = bar.sizeThatFits(
             CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude))
-          // Adjust height for larger icons - default icon is ~25pt, default height is ~49pt
           let defaultIconSize: CGFloat = 25.0
           let maxIconSize = self.currentIconSizes.max() ?? defaultIconSize
           let extraHeight = max(0, maxIconSize - defaultIconSize)
@@ -427,6 +458,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         } else {
           result(["width": Double(self.container.bounds.width), "height": 50.0])
         }
+
       case "setItems":
         if let args = call.arguments as? [String: Any] {
           let labels = (args["labels"] as? [String]) ?? []
@@ -442,6 +474,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
           var activeImageAssetData: [Data?] = []
           var imageAssetFormats: [String] = []
           var activeImageAssetFormats: [String] = []
+
           if let bytesArray = args["customIconBytes"] as? [FlutterStandardTypedData?] {
             customIconBytes = bytesArray.map { $0?.data }
           }
@@ -462,6 +495,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
             self.iconScale = CGFloat(truncating: scale)
           }
           let selectedIndex = (args["selectedIndex"] as? NSNumber)?.intValue ?? 0
+
           self.currentLabels = labels
           self.currentSymbols = symbols
           self.currentActiveSymbols = activeSymbols
@@ -474,23 +508,20 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
           self.currentActiveImageAssetData = activeImageAssetData
           self.currentImageAssetFormats = imageAssetFormats
           self.currentActiveImageAssetFormats = activeImageAssetFormats
-          // Store icon sizes for dynamic height calculation
           self.currentIconSizes = sizes.compactMap { $0?.doubleValue }.map { CGFloat($0) }
+
           func buildItems(_ range: Range<Int>) -> [UITabBarItem] {
             var items: [UITabBarItem] = []
             for i in range {
               var image: UIImage? = nil
               var selectedImage: UIImage? = nil
 
-              // Extract size for this item from sizes array
               let imgSize: CGSize? =
                 (i < sizes.count)
                 ? sizes[i].flatMap {
                   $0.doubleValue > 0 ? CGSize(width: $0.doubleValue, height: $0.doubleValue) : nil
                 } : nil
 
-              // Priority: imageAsset > customIconBytes > SF Symbol
-              // Unselected image
               if i < imageAssetData.count, let data = imageAssetData[i] {
                 image = Self.createImageFromData(
                   data, format: (i < imageAssetFormats.count) ? imageAssetFormats[i] : nil,
@@ -501,7 +532,6 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
                 image = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(
                   .alwaysTemplate)
               } else if i < symbols.count && !symbols[i].isEmpty {
-                // Apply size configuration if specified
                 if i < sizes.count, let sizeNum = sizes[i], sizeNum.doubleValue > 0 {
                   let config = UIImage.SymbolConfiguration(pointSize: CGFloat(sizeNum.doubleValue))
                   image = UIImage(systemName: symbols[i], withConfiguration: config)
@@ -510,7 +540,6 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
                 }
               }
 
-              // Selected image: Use active versions if available
               if i < activeImageAssetData.count, let data = activeImageAssetData[i] {
                 selectedImage = Self.createImageFromData(
                   data,
@@ -522,7 +551,6 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
                 selectedImage = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(
                   .alwaysTemplate)
               } else if i < activeSymbols.count && !activeSymbols[i].isEmpty {
-                // Apply size configuration if specified
                 if i < sizes.count, let sizeNum = sizes[i], sizeNum.doubleValue > 0 {
                   let config = UIImage.SymbolConfiguration(pointSize: CGFloat(sizeNum.doubleValue))
                   selectedImage = UIImage(systemName: activeSymbols[i], withConfiguration: config)
@@ -530,7 +558,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
                   selectedImage = UIImage(systemName: activeSymbols[i])
                 }
               } else {
-                selectedImage = image  // Fallback to same image
+                selectedImage = image
               }
 
               let title = (i < labels.count && !labels[i].isEmpty) ? labels[i] : nil
@@ -538,7 +566,6 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
               if i < badges.count && !badges[i].isEmpty {
                 item.badgeValue = badges[i]
               }
-              // Adjust title position for larger icons to prevent overlap
               if i < sizes.count, let sizeNum = sizes[i] {
                 let pointSize = sizeNum.doubleValue
                 if pointSize > 25 {
@@ -550,11 +577,24 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
             }
             return items
           }
+
           let count = max(labels.count, symbols.count)
           if self.isSplit && count > self.rightCountVal, let left = self.tabBarLeft,
             let right = self.tabBarRight
           {
             let leftEnd = count - self.rightCountVal
+
+            // Update appearance before items
+            if #available(iOS 13.0, *) {
+              let ap = self.makeAppearance()
+              left.standardAppearance = ap
+              right.standardAppearance = ap
+              if #available(iOS 15.0, *) {
+                left.scrollEdgeAppearance = ap
+                right.scrollEdgeAppearance = ap
+              }
+            }
+
             left.items = buildItems(0..<leftEnd)
             right.items = buildItems(leftEnd..<count)
             if selectedIndex < leftEnd, let items = left.items {
@@ -569,6 +609,15 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
             }
             result(nil)
           } else if let bar = self.tabBar {
+            // Update appearance before items
+            if #available(iOS 13.0, *) {
+              let ap = self.makeAppearance()
+              bar.standardAppearance = ap
+              if #available(iOS 15.0, *) {
+                bar.scrollEdgeAppearance = ap
+              }
+            }
+
             bar.items = buildItems(0..<count)
             if let items = bar.items, selectedIndex >= 0, selectedIndex < items.count {
               bar.selectedItem = items[selectedIndex]
@@ -581,24 +630,25 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         } else {
           result(FlutterError(code: "bad_args", message: "Missing items", details: nil))
         }
+
       case "setLayout":
         if let args = call.arguments as? [String: Any] {
           let split = (args["split"] as? NSNumber)?.boolValue ?? false
           let rightCount = (args["rightCount"] as? NSNumber)?.intValue ?? 1
-          // Insets are controlled by Flutter padding; keep stored zeros here
           let leftInset = self.leftInsetVal
           let rightInset = self.rightInsetVal
           if let sp = args["splitSpacing"] as? NSNumber {
             self.splitSpacingVal = CGFloat(truncating: sp)
           }
           let selectedIndex = (args["selectedIndex"] as? NSNumber)?.intValue ?? 0
-          // Remove existing bars
+
           self.tabBar?.removeFromSuperview()
           self.tabBar = nil
           self.tabBarLeft?.removeFromSuperview()
           self.tabBarLeft = nil
           self.tabBarRight?.removeFromSuperview()
           self.tabBarRight = nil
+
           let labels = self.currentLabels
           let symbols = self.currentSymbols
           let activeSymbols = self.currentActiveSymbols
@@ -611,24 +661,23 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
           let activeImageAssetData = self.currentActiveImageAssetData
           let imageAssetFormats = self.currentImageAssetFormats
           let activeImageAssetFormats = self.currentActiveImageAssetFormats
+          let iconSizes = self.currentIconSizes
+
           let appearance: UITabBarAppearance? = {
             if #available(iOS 13.0, *) { return self.makeAppearance() }
             return nil
           }()
-          let iconSizes = self.currentIconSizes
+
           func buildItems(_ range: Range<Int>) -> [UITabBarItem] {
             var items: [UITabBarItem] = []
             for i in range {
               var image: UIImage? = nil
               var selectedImage: UIImage? = nil
 
-              // Extract size for this item from stored icon sizes
               let imgSize: CGSize? =
                 (i < iconSizes.count && iconSizes[i] > 0)
                 ? CGSize(width: iconSizes[i], height: iconSizes[i]) : nil
 
-              // Priority: imageAsset > customIconBytes > SF Symbol
-              // Unselected image
               if i < imageAssetData.count, let data = imageAssetData[i] {
                 image = Self.createImageFromData(
                   data, format: (i < imageAssetFormats.count) ? imageAssetFormats[i] : nil,
@@ -639,7 +688,6 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
                 image = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(
                   .alwaysTemplate)
               } else if i < symbols.count && !symbols[i].isEmpty {
-                // Apply size configuration if stored
                 if i < iconSizes.count && iconSizes[i] > 0 {
                   let config = UIImage.SymbolConfiguration(pointSize: iconSizes[i])
                   image = UIImage(systemName: symbols[i], withConfiguration: config)
@@ -648,7 +696,6 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
                 }
               }
 
-              // Selected image: Use active versions if available
               if i < activeImageAssetData.count, let data = activeImageAssetData[i] {
                 selectedImage = Self.createImageFromData(
                   data,
@@ -660,7 +707,6 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
                 selectedImage = UIImage(data: data, scale: self.iconScale)?.withRenderingMode(
                   .alwaysTemplate)
               } else if i < activeSymbols.count && !activeSymbols[i].isEmpty {
-                // Apply size configuration if stored
                 if i < iconSizes.count && iconSizes[i] > 0 {
                   let config = UIImage.SymbolConfiguration(pointSize: iconSizes[i])
                   selectedImage = UIImage(systemName: activeSymbols[i], withConfiguration: config)
@@ -668,7 +714,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
                   selectedImage = UIImage(systemName: activeSymbols[i])
                 }
               } else {
-                selectedImage = image  // Fallback to same image
+                selectedImage = image
               }
 
               let title = (i < labels.count && !labels[i].isEmpty) ? labels[i] : nil
@@ -680,6 +726,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
             }
             return items
           }
+
           let count = max(labels.count, symbols.count)
           if split && count > rightCount {
             let leftEnd = count - rightCount
@@ -689,7 +736,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
             self.tabBarRight = right
             left.translatesAutoresizingMaskIntoConstraints = false
             right.translatesAutoresizingMaskIntoConstraints = false
-            // On iOS 26+, allow overflow for Liquid Glass pill effect
+
             if #available(iOS 26.0, *) {
               left.clipsToBounds = false
               right.clipsToBounds = false
@@ -701,6 +748,8 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
             right.layer.shadowOpacity = 0
             left.delegate = self
             right.delegate = self
+
+            // Set appearance BEFORE items
             if let ap = appearance {
               if #available(iOS 13.0, *) {
                 left.standardAppearance = ap
@@ -711,6 +760,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
                 }
               }
             }
+
             left.items = buildItems(0..<leftEnd)
             right.items = buildItems(leftEnd..<count)
             if selectedIndex < leftEnd, let items = left.items {
@@ -723,15 +773,14 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
                 left.selectedItem = nil
               }
             }
+
             self.container.addSubview(left)
             self.container.addSubview(right)
+
             let spacing: CGFloat = splitSpacingVal
             let leftWidth = left.sizeThatFits(.zero).width + leftInset * 2
             let rightWidth = right.sizeThatFits(.zero).width + rightInset * 2
-            let total = leftWidth + rightWidth + spacing
-
-            // Ensure minimum width for single items to maintain circular shape
-            let minItemWidth: CGFloat = 50.0  // Minimum width per item
+            let minItemWidth: CGFloat = 44.0
             let adjustedRightWidth = max(rightWidth, minItemWidth * CGFloat(rightCount))
             let adjustedLeftWidth = max(leftWidth, minItemWidth * CGFloat(count - rightCount))
             let adjustedTotal = adjustedLeftWidth + adjustedRightWidth + spacing
@@ -767,25 +816,37 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
                   lessThanOrEqualTo: right.leadingAnchor, constant: -spacing),
               ])
             }
-            // Force layout update for background and text rendering on iOS < 16
-            // Re-assign items after layout to ensure labels render properly
-            // Capture selectedIndex for restoration after item re-assignment
+
             let capturedSelectedIndex = selectedIndex
             let capturedLeftEnd = leftEnd
             DispatchQueue.main.async { [weak self, weak left, weak right] in
               guard let self = self, let left = left, let right = right else { return }
+
+              CATransaction.begin()
+              CATransaction.setDisableActions(true)
+
+              if #available(iOS 13.0, *) {
+                let ap = self.makeAppearance()
+                left.standardAppearance = ap
+                right.standardAppearance = ap
+                if #available(iOS 15.0, *) {
+                  left.scrollEdgeAppearance = ap
+                  right.scrollEdgeAppearance = ap
+                }
+              }
+
               self.container.setNeedsLayout()
               self.container.layoutIfNeeded()
               left.setNeedsLayout()
               left.layoutIfNeeded()
               right.setNeedsLayout()
               right.layoutIfNeeded()
-              // Re-assign items to force label rendering
+
               let leftItems = left.items
               let rightItems = right.items
               left.items = leftItems
               right.items = rightItems
-              // Restore selection after re-assigning items (re-assignment can reset selection)
+
               if capturedSelectedIndex < capturedLeftEnd, let items = left.items,
                 capturedSelectedIndex < items.count
               {
@@ -798,64 +859,71 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
                   left.selectedItem = nil
                 }
               }
-              // Force another update cycle for text rendering
-              DispatchQueue.main.async { [weak left, weak right] in
-                guard let left = left, let right = right else { return }
-                left.setNeedsDisplay()
-                right.setNeedsDisplay()
-                left.setNeedsLayout()
-                left.layoutIfNeeded()
-                right.setNeedsLayout()
-                right.layoutIfNeeded()
-              }
+
+              left.setNeedsDisplay()
+              right.setNeedsDisplay()
+
+              CATransaction.commit()
             }
           } else {
             let bar = UITabBar(frame: .zero)
             self.tabBar = bar
             bar.delegate = self
             bar.translatesAutoresizingMaskIntoConstraints = false
-            // On iOS 26+, allow overflow for Liquid Glass pill effect
+
             if #available(iOS 26.0, *) {
               bar.clipsToBounds = false
             } else {
               bar.clipsToBounds = true
             }
             bar.layer.shadowOpacity = 0
+
+            // Set appearance BEFORE items
             if let ap = appearance {
               if #available(iOS 13.0, *) {
                 bar.standardAppearance = ap
                 if #available(iOS 15.0, *) { bar.scrollEdgeAppearance = ap }
               }
             }
+
             bar.items = buildItems(0..<count)
             if let items = bar.items, selectedIndex >= 0, selectedIndex < items.count {
               bar.selectedItem = items[selectedIndex]
             }
             self.container.addSubview(bar)
+
             NSLayoutConstraint.activate([
               bar.leadingAnchor.constraint(equalTo: self.container.leadingAnchor),
               bar.trailingAnchor.constraint(equalTo: self.container.trailingAnchor),
               bar.topAnchor.constraint(equalTo: self.container.topAnchor),
               bar.bottomAnchor.constraint(equalTo: self.container.bottomAnchor),
             ])
-            // Force layout update for background and text rendering on iOS < 16
-            // Re-assign items after layout to ensure labels render properly
+
             DispatchQueue.main.async { [weak self, weak bar] in
               guard let self = self, let bar = bar else { return }
+
+              CATransaction.begin()
+              CATransaction.setDisableActions(true)
+
+              if #available(iOS 13.0, *) {
+                let ap = self.makeAppearance()
+                bar.standardAppearance = ap
+                if #available(iOS 15.0, *) {
+                  bar.scrollEdgeAppearance = ap
+                }
+              }
+
               self.container.setNeedsLayout()
               self.container.layoutIfNeeded()
               bar.setNeedsLayout()
               bar.layoutIfNeeded()
-              // Re-assign items to force label rendering
+
               let items = bar.items
               bar.items = items
-              // Force another update cycle for text rendering
-              DispatchQueue.main.async { [weak bar] in
-                guard let bar = bar else { return }
-                bar.setNeedsDisplay()
-                bar.setNeedsLayout()
-                bar.layoutIfNeeded()
-              }
+
+              bar.setNeedsDisplay()
+
+              CATransaction.commit()
             }
           }
           self.isSplit = split
@@ -866,71 +934,81 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         } else {
           result(FlutterError(code: "bad_args", message: "Missing layout", details: nil))
         }
-      case "setSelectedIndex":
-        if let args = call.arguments as? [String: Any],
-          let idx = (args["index"] as? NSNumber)?.intValue
-        {
-          // Check if this is the initial set (no animation)
-          let isInitial = (args["isInitial"] as? Bool) ?? false
 
-          // Single bar
-          if let bar = self.tabBar, let items = bar.items, idx >= 0, idx < items.count {
-            if isInitial {
-              // Set without animation for initial setup
-              UIView.performWithoutAnimation {
-                bar.selectedItem = items[idx]
-                bar.setNeedsLayout()
-                bar.layoutIfNeeded()
+      case "setSelectedIndex":
+        guard let args = call.arguments as? [String: Any],
+          let idx = (args["index"] as? NSNumber)?.intValue
+        else {
+          result(FlutterError(code: "bad_args", message: "Missing index", details: nil))
+          return
+        }
+
+        let isInitial = (args["isInitial"] as? Bool) ?? false
+
+        // Helper to set selection without animation (for initial only)
+        func setSelectionWithoutAnimation(on bar: UITabBar?, to item: UITabBarItem?) {
+          guard let bar = bar, let item = item else { return }
+
+          UIView.performWithoutAnimation {
+            bar.selectedItem = item
+            bar.setNeedsLayout()
+            bar.layoutIfNeeded()
+            bar.setNeedsDisplay()
+          }
+
+          // Extra safety for modern iOS (forces immediate visual update)
+          if #available(iOS 13.0, *) {
+            DispatchQueue.main.async {
+              bar.standardAppearance = self.makeAppearance()
+              if #available(iOS 15.0, *) {
+                bar.scrollEdgeAppearance = self.makeAppearance()
               }
+            }
+          }
+        }
+
+        // Single tab bar case
+        if let bar = self.tabBar, let items = bar.items, idx >= 0, idx < items.count {
+          if isInitial {
+            setSelectionWithoutAnimation(on: bar, to: items[idx])
+          } else {
+            bar.selectedItem = items[idx]  // Normal animated tap
+          }
+          result(nil)
+          return
+        }
+
+        // Split tab bar case
+        if let left = self.tabBarLeft, let leftItems = left.items {
+          if idx < leftItems.count && idx >= 0 {
+            if isInitial {
+              setSelectionWithoutAnimation(on: left, to: leftItems[idx])
+              setSelectionWithoutAnimation(on: self.tabBarRight, to: nil)
             } else {
-              bar.selectedItem = items[idx]
+              left.selectedItem = leftItems[idx]
+              self.tabBarRight?.selectedItem = nil
             }
             result(nil)
             return
           }
 
-          // Split bars
-          if let left = self.tabBarLeft, let leftItems = left.items {
-            if idx < leftItems.count, idx >= 0 {
+          if let right = self.tabBarRight, let rightItems = right.items {
+            let ridx = idx - leftItems.count
+            if ridx >= 0 && ridx < rightItems.count {
               if isInitial {
-                UIView.performWithoutAnimation {
-                  left.selectedItem = leftItems[idx]
-                  self.tabBarRight?.selectedItem = nil
-                  left.setNeedsLayout()
-                  left.layoutIfNeeded()
-                }
+                setSelectionWithoutAnimation(on: right, to: rightItems[ridx])
+                setSelectionWithoutAnimation(on: self.tabBarLeft, to: nil)
               } else {
-                left.selectedItem = leftItems[idx]
-                self.tabBarRight?.selectedItem = nil
+                right.selectedItem = rightItems[ridx]
+                self.tabBarLeft?.selectedItem = nil
               }
               result(nil)
               return
             }
-
-            if let right = self.tabBarRight, let rightItems = right.items {
-              let ridx = idx - leftItems.count
-              if ridx >= 0, ridx < rightItems.count {
-                if isInitial {
-                  UIView.performWithoutAnimation {
-                    right.selectedItem = rightItems[ridx]
-                    self.tabBarLeft?.selectedItem = nil
-                    right.setNeedsLayout()
-                    right.layoutIfNeeded()
-                  }
-                } else {
-                  right.selectedItem = rightItems[ridx]
-                  self.tabBarLeft?.selectedItem = nil
-                }
-                result(nil)
-                return
-              }
-            }
           }
-
-          result(FlutterError(code: "bad_args", message: "Index out of range", details: nil))
-        } else {
-          result(FlutterError(code: "bad_args", message: "Missing index", details: nil))
         }
+
+        result(FlutterError(code: "bad_args", message: "Index out of range", details: nil))
       case "setStyle":
         if let args = call.arguments as? [String: Any] {
           if let n = args["tint"] as? NSNumber {
@@ -949,6 +1027,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         } else {
           result(FlutterError(code: "bad_args", message: "Missing style", details: nil))
         }
+
       case "setBrightness":
         if let args = call.arguments as? [String: Any],
           let isDark = (args["isDark"] as? NSNumber)?.boolValue
@@ -960,11 +1039,10 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         } else {
           result(FlutterError(code: "bad_args", message: "Missing isDark", details: nil))
         }
+
       case "setBadges":
-        // Lightweight badge-only update without rebuilding items
         if let args = call.arguments as? [String: Any], let badges = args["badges"] as? [String] {
           self.currentBadges = badges
-          // Update single bar
           if let bar = self.tabBar, let items = bar.items {
             for (i, item) in items.enumerated() {
               if i < badges.count && !badges[i].isEmpty {
@@ -974,7 +1052,6 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
               }
             }
           }
-          // Update split bars
           if let left = self.tabBarLeft, let leftItems = left.items,
             let right = self.tabBarRight, let rightItems = right.items
           {
@@ -999,8 +1076,8 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         } else {
           result(FlutterError(code: "bad_args", message: "Missing badges", details: nil))
         }
+
       case "setFont":
-        // Update label font and re-apply appearance to all tab bars
         if let args = call.arguments as? [String: Any] {
           if let ff = args["labelFontFamily"] as? String {
             self.labelFontFamily = ff.isEmpty ? nil : ff
@@ -1010,96 +1087,36 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
           }
           if #available(iOS 13.0, *) {
             let ap = self.makeAppearance()
+
             if let bar = self.tabBar {
               bar.standardAppearance = ap
               if #available(iOS 15.0, *) { bar.scrollEdgeAppearance = ap }
+              let items = bar.items
+              bar.items = items
             }
             if let left = self.tabBarLeft {
               left.standardAppearance = ap
               if #available(iOS 15.0, *) { left.scrollEdgeAppearance = ap }
+              let items = left.items
+              left.items = items
             }
             if let right = self.tabBarRight {
               right.standardAppearance = ap
               if #available(iOS 15.0, *) { right.scrollEdgeAppearance = ap }
+              let items = right.items
+              right.items = items
             }
           }
           result(nil)
         } else {
           result(FlutterError(code: "bad_args", message: "Missing font args", details: nil))
         }
+
       case "refresh":
-        // CRITICAL FIX: Prevent unwanted tab switching during refresh
-        // Store the current selected item before refresh
-        let originalSelectedItem: UITabBarItem?
-        let originalLeftSelectedItem: UITabBarItem?
-        let originalRightSelectedItem: UITabBarItem?
-
-        if let bar = self.tabBar {
-          originalSelectedItem = bar.selectedItem
-          originalLeftSelectedItem = nil
-          originalRightSelectedItem = nil
-        } else if let left = self.tabBarLeft, let right = self.tabBarRight {
-          originalSelectedItem = nil
-          originalLeftSelectedItem = left.selectedItem
-          originalRightSelectedItem = right.selectedItem
-        } else {
-          originalSelectedItem = nil
-          originalLeftSelectedItem = nil
-          originalRightSelectedItem = nil
-        }
-
-        // Temporarily remove delegate to prevent callbacks during refresh
-        let originalDelegate = self.tabBar?.delegate
-        let originalLeftDelegate = self.tabBarLeft?.delegate
-        let originalRightDelegate = self.tabBarRight?.delegate
-
-        self.tabBar?.delegate = nil
-        self.tabBarLeft?.delegate = nil
-        self.tabBarRight?.delegate = nil
-
-        // Force layout update without changing selection
-        if let bar = self.tabBar {
-          bar.setNeedsLayout()
-          bar.layoutIfNeeded()
-
-          // Re-assign items to force label rendering
-          let items = bar.items
-          bar.items = items
-
-          // Restore original selection
-          if let originalItem = originalSelectedItem {
-            bar.selectedItem = originalItem
-          }
-        } else if let left = self.tabBarLeft, let right = self.tabBarRight {
-          left.setNeedsLayout()
-          left.layoutIfNeeded()
-          right.setNeedsLayout()
-          right.layoutIfNeeded()
-
-          // Re-assign items to force label rendering
-          let leftItems = left.items
-          let rightItems = right.items
-          left.items = leftItems
-          right.items = rightItems
-
-          // Restore original selections
-          if let originalLeftItem = originalLeftSelectedItem {
-            left.selectedItem = originalLeftItem
-          }
-          if let originalRightItem = originalRightSelectedItem {
-            right.selectedItem = originalRightItem
-          }
-        }
-
-        // Restore delegates after refresh
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-          guard let self = self else { return }
-          self.tabBar?.delegate = originalDelegate
-          self.tabBarLeft?.delegate = originalLeftDelegate
-          self.tabBarRight?.delegate = originalRightDelegate
-        }
-
+        // Force refresh for label rendering
+        self.forceInitialLabelRefresh()
         result(nil)
+
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -1107,10 +1124,177 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
   }
 
   func view() -> UIView { container }
+  // Strong fix for initial selection (no animation at app start)
+  private func forceCleanInitialSelection() {
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    CATransaction.setAnimationDuration(0.0)
+
+    if let bar = tabBar, let items = bar.items, !items.isEmpty {
+      let current = bar.selectedItem
+      bar.selectedItem = nil  // Clear first
+      bar.setNeedsLayout()
+      bar.layoutIfNeeded()
+      bar.selectedItem = current ?? items.first  // Re-apply (default to 0 if nil)
+      bar.setNeedsDisplay()
+
+    } else if let left = tabBarLeft, let right = tabBarRight {
+      let leftSel = left.selectedItem
+      let rightSel = right.selectedItem
+
+      left.selectedItem = nil
+      right.selectedItem = nil
+
+      left.setNeedsLayout()
+      left.layoutIfNeeded()
+      right.setNeedsLayout()
+      right.layoutIfNeeded()
+
+      left.selectedItem = leftSel
+      right.selectedItem = rightSel
+
+      left.setNeedsDisplay()
+      right.setNeedsDisplay()
+    }
+
+    CATransaction.commit()
+
+    // Final safety pass
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
+      self?.setNeedsDisplayOnAllBars()
+    }
+  }
+
+  private func setNeedsDisplayOnAllBars() {
+    tabBar?.setNeedsDisplay()
+    tabBarLeft?.setNeedsDisplay()
+    tabBarRight?.setNeedsDisplay()
+  }
+  // MARK: - Initial Label Refresh Helper
+
+  private func forceInitialLabelRefresh() {
+    if let bar = self.tabBar, let items = bar.items, !items.isEmpty {
+      let originalSelected = bar.selectedItem
+      let originalDelegate = bar.delegate
+
+      // Temporarily remove delegate to prevent callbacks
+      bar.delegate = nil
+
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
+
+      // Force appearance update
+      if #available(iOS 13.0, *) {
+        let ap = self.makeAppearance()
+        bar.standardAppearance = ap
+        if #available(iOS 15.0, *) {
+          bar.scrollEdgeAppearance = ap
+        }
+      }
+
+      // Cycle through items to force label layout
+      var index = 0
+      func cycleItems() {
+        guard index < items.count else {
+          // Restore original selection
+          bar.selectedItem = originalSelected
+          bar.setNeedsLayout()
+          bar.layoutIfNeeded()
+          bar.setNeedsDisplay()
+          bar.delegate = originalDelegate
+          CATransaction.commit()
+          return
+        }
+        bar.selectedItem = items[index]
+        bar.setNeedsLayout()
+        bar.layoutIfNeeded()
+        index += 1
+        DispatchQueue.main.async {
+          cycleItems()
+        }
+      }
+      cycleItems()
+
+    } else if let left = self.tabBarLeft, let right = self.tabBarRight {
+      let leftOriginal = left.selectedItem
+      let rightOriginal = right.selectedItem
+      let leftDelegate = left.delegate
+      let rightDelegate = right.delegate
+
+      left.delegate = nil
+      right.delegate = nil
+
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
+
+      // Force appearance update
+      if #available(iOS 13.0, *) {
+        let ap = self.makeAppearance()
+        left.standardAppearance = ap
+        right.standardAppearance = ap
+        if #available(iOS 15.0, *) {
+          left.scrollEdgeAppearance = ap
+          right.scrollEdgeAppearance = ap
+        }
+      }
+
+      if let leftItems = left.items, !leftItems.isEmpty {
+        var leftIndex = 0
+        func cycleLeftItems() {
+          if leftIndex < leftItems.count {
+            left.selectedItem = leftItems[leftIndex]
+            left.setNeedsLayout()
+            left.layoutIfNeeded()
+            leftIndex += 1
+            DispatchQueue.main.async {
+              cycleLeftItems()
+            }
+          } else {
+            // Restore original
+            left.selectedItem = leftOriginal
+            left.setNeedsLayout()
+            left.layoutIfNeeded()
+
+            if let rightItems = right.items, !rightItems.isEmpty {
+              var rightIndex = 0
+              func cycleRightItems() {
+                if rightIndex < rightItems.count {
+                  right.selectedItem = rightItems[rightIndex]
+                  right.setNeedsLayout()
+                  right.layoutIfNeeded()
+                  rightIndex += 1
+                  DispatchQueue.main.async {
+                    cycleRightItems()
+                  }
+                } else {
+                  right.selectedItem = rightOriginal
+                  right.setNeedsLayout()
+                  right.layoutIfNeeded()
+
+                  left.setNeedsDisplay()
+                  right.setNeedsDisplay()
+
+                  left.delegate = leftDelegate
+                  right.delegate = rightDelegate
+
+                  CATransaction.commit()
+                }
+              }
+              cycleRightItems()
+            } else {
+              left.delegate = leftDelegate
+              right.delegate = rightDelegate
+              CATransaction.commit()
+            }
+          }
+        }
+        cycleLeftItems()
+      }
+    }
+  }
 
   // MARK: - Appearance helpers
 
-  /// Builds a UITabBarAppearance with transparent background and optional custom label font.
   @available(iOS 13.0, *)
   private func makeAppearance() -> UITabBarAppearance {
     let ap = UITabBarAppearance()
@@ -1121,13 +1305,23 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
     return ap
   }
 
-  /// Applies the current label font to a UITabBarAppearance.
   @available(iOS 13.0, *)
   private func applyLabelFont(to ap: UITabBarAppearance) {
     guard let fontFamily = labelFontFamily, !fontFamily.isEmpty else { return }
     let size = labelFontSize > 0 ? labelFontSize : 10.0
-    let font = UIFont(name: fontFamily, size: size) ?? UIFont.systemFont(ofSize: size)
+
+    // Check if font exists
+    var font: UIFont
+    if let customFont = UIFont(name: fontFamily, size: size) {
+      font = customFont
+    } else {
+      font = UIFont.systemFont(ofSize: size)
+      print("⚠️ Font '\(fontFamily)' not found, using system font")
+    }
+
     let attrs: [NSAttributedString.Key: Any] = [.font: font]
+
+    // Apply to ALL layout appearances
     ap.stackedLayoutAppearance.normal.titleTextAttributes = attrs
     ap.stackedLayoutAppearance.selected.titleTextAttributes = attrs
     ap.inlineLayoutAppearance.normal.titleTextAttributes = attrs
@@ -1137,14 +1331,12 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
   }
 
   func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
-    // Single bar case
     if let single = self.tabBar, single === tabBar, let items = single.items,
       let idx = items.firstIndex(of: item)
     {
       channel.invokeMethod("valueChanged", arguments: ["index": idx])
       return
     }
-    // Split left
     if let left = tabBarLeft, left === tabBar, let items = left.items,
       let idx = items.firstIndex(of: item)
     {
@@ -1152,7 +1344,6 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
       channel.invokeMethod("valueChanged", arguments: ["index": idx])
       return
     }
-    // Split right
     if let right = tabBarRight, right === tabBar, let items = right.items,
       let idx = items.firstIndex(of: item), let left = tabBarLeft, let leftItems = left.items
     {
@@ -1162,7 +1353,6 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
     }
   }
 
-  // Use shared utility functions
   private static func colorFromARGB(_ argb: Int) -> UIColor {
     return ImageUtils.colorFromARGB(argb)
   }
@@ -1176,57 +1366,4 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
   ) -> UIImage? {
     return ImageUtils.createImageFromData(data, format: format, size: size, scale: scale)
   }
-
-}
-
-// Add this class extension or inside the CupertinoTabBarPlatformView class
-class CupertinoTabBarPreloader {
-    private static var preloadedTabBars: [String: UIView] = [:]
-    private static var preloadQueue = DispatchQueue(label: "com.cupertino.tabbar.preload")
-    
-    static func preloadTabBar(with args: [String: Any], for key: String) {
-        preloadQueue.async {
-            guard preloadedTabBars[key] == nil else { return }
-            
-            // Create a temporary view for preloading
-            let tempContainer = UIView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.width, height: 50))
-            
-            // Preload all assets
-            if let imageAssetPaths = args["imageAssetPaths"] as? [String] {
-                let allPaths = Set(imageAssetPaths).filter { !$0.isEmpty }
-                if !allPaths.isEmpty {
-                    SVGImageLoader.shared.preloadAssetsFromPaths(Array(allPaths))
-                }
-            }
-            
-            if let activeImageAssetPaths = args["activeImageAssetPaths"] as? [String] {
-                let allPaths = Set(activeImageAssetPaths).filter { !$0.isEmpty }
-                if !allPaths.isEmpty {
-                    SVGImageLoader.shared.preloadAssetsFromPaths(Array(allPaths))
-                }
-            }
-            
-            // Preload SF Symbols by creating them in background
-            if let symbols = args["sfSymbols"] as? [String] {
-                for symbol in symbols where !symbol.isEmpty {
-                    _ = UIImage(systemName: symbol)
-                }
-            }
-            
-            if let activeSymbols = args["activeSfSymbols"] as? [String] {
-                for symbol in activeSymbols where !symbol.isEmpty {
-                    _ = UIImage(systemName: symbol)
-                }
-            }
-            
-            // Store that we've preloaded
-            preloadedTabBars[key] = tempContainer
-        }
-    }
-    
-    static func clearPreload() {
-        preloadQueue.async {
-            preloadedTabBars.removeAll()
-        }
-    }
 }
