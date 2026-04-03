@@ -27,6 +27,7 @@ class CNPopupMenuItem extends CNPopupMenuEntry {
     this.imageAsset,
     this.iconColor,
     this.enabled = true,
+    this.checked = false,
   });
 
   /// Display label for the item.
@@ -50,6 +51,9 @@ class CNPopupMenuItem extends CNPopupMenuEntry {
 
   /// Whether the item can be selected.
   final bool enabled;
+
+  /// Whether the item shows a checkmark (selected/active state).
+  final bool checked;
 }
 
 /// A visual divider between popup menu items.
@@ -400,6 +404,7 @@ class _CNPopupMenuButtonState extends State<CNPopupMenuButton> {
     final imageAssetFormats = <String>[];
     final isDivider = <bool>[];
     final enabled = <bool>[];
+    final checked = <bool>[];
     final sizes = <double?>[];
     final colors = <int?>[];
     final modes = <String?>[];
@@ -419,6 +424,7 @@ class _CNPopupMenuButtonState extends State<CNPopupMenuButton> {
         imageAssetFormats.add('');
         isDivider.add(true);
         enabled.add(false);
+        checked.add(false);
         sizes.add(null);
         colors.add(null);
         modes.add(null);
@@ -454,6 +460,7 @@ class _CNPopupMenuButtonState extends State<CNPopupMenuButton> {
 
         isDivider.add(false);
         enabled.add(e.enabled);
+        checked.add(e.checked);
         sizes.add(e.imageAsset?.size ?? e.icon?.size);
         colors.add(capturedMenuItemColors[i]);
         modes.add(e.imageAsset?.mode?.name ?? e.icon?.mode?.name);
@@ -496,6 +503,7 @@ class _CNPopupMenuButtonState extends State<CNPopupMenuButton> {
       'imageAssetFormats': imageAssetFormats,
       'isDivider': isDivider,
       'enabled': enabled,
+      'checked': checked,
       'sfSymbolSizes': sizes,
       'sfSymbolColors': colors,
       'sfSymbolRenderingModes': modes,
@@ -648,6 +656,7 @@ class _CNPopupMenuButtonState extends State<CNPopupMenuButton> {
     final updSymbols = <String>[];
     final updIsDivider = <bool>[];
     final updEnabled = <bool>[];
+    final updChecked = <bool>[];
     final updSizes = <double?>[];
     final updColors = <int?>[];
     final updModes = <String?>[];
@@ -662,6 +671,7 @@ class _CNPopupMenuButtonState extends State<CNPopupMenuButton> {
         updSymbols.add('');
         updIsDivider.add(true);
         updEnabled.add(false);
+        updChecked.add(false);
         updSizes.add(null);
         updColors.add(null);
         updModes.add(null);
@@ -675,6 +685,7 @@ class _CNPopupMenuButtonState extends State<CNPopupMenuButton> {
         updSymbols.add(e.icon?.name ?? '');
         updIsDivider.add(false);
         updEnabled.add(e.enabled);
+        updChecked.add(e.checked);
         updSizes.add(e.imageAsset?.size ?? e.icon?.size);
         updColors.add(
           resolveColorToArgb(e.imageAsset?.color ?? e.icon?.color, context),
@@ -803,6 +814,7 @@ class _CNPopupMenuButtonState extends State<CNPopupMenuButton> {
       'sfSymbols': updSymbols,
       'isDivider': updIsDivider,
       'enabled': updEnabled,
+      'checked': updChecked,
       'sfSymbolSizes': updSizes,
       'sfSymbolColors': updColors,
       'sfSymbolRenderingModes': updModes,

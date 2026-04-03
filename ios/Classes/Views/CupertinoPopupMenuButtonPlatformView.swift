@@ -17,6 +17,7 @@ class CupertinoPopupMenuButtonPlatformView: NSObject, FlutterPlatformView {
   private var imageAssetFormats: [String] = []
   private var dividers: [Bool] = []
   private var enabled: [Bool] = []
+  private var checked: [Bool] = []
   private var itemSizes: [Any] = []
   private var itemColors: [Any] = []
   private var itemModes: [String?] = []
@@ -91,6 +92,7 @@ class CupertinoPopupMenuButtonPlatformView: NSObject, FlutterPlatformView {
       imageAssetFormats = (dict["imageAssetFormats"] as? [String]) ?? []
       dividers = (dict["isDivider"] as? [NSNumber]) ?? []
       enabled = (dict["enabled"] as? [NSNumber]) ?? []
+      if let c = dict["checked"] as? [NSNumber] { self.checked = c.map { $0.boolValue } }
       sizes = (dict["sfSymbolSizes"] as? [Any]) ?? []
       colors = (dict["sfSymbolColors"] as? [Any]) ?? []
       if let modes = dict["sfSymbolRenderingModes"] as? [String?] { self.itemModes = modes }
@@ -198,6 +200,7 @@ class CupertinoPopupMenuButtonPlatformView: NSObject, FlutterPlatformView {
           self.symbols = (args["sfSymbols"] as? [String]) ?? []
           self.dividers = ((args["isDivider"] as? [NSNumber]) ?? []).map { $0.boolValue }
           self.enabled = ((args["enabled"] as? [NSNumber]) ?? []).map { $0.boolValue }
+          self.checked = ((args["checked"] as? [NSNumber]) ?? []).map { $0.boolValue }
           let sizes = (args["sfSymbolSizes"] as? [NSNumber]) ?? []
           let colors = (args["sfSymbolColors"] as? [NSNumber]) ?? []
           self.itemSizes = sizes
@@ -453,9 +456,11 @@ class CupertinoPopupMenuButtonPlatformView: NSObject, FlutterPlatformView {
           }
         }
         let isEnabled = i < enabled.count ? enabled[i] : true
+        let isChecked = i < checked.count ? checked[i] : false
         let action = UIAction(title: title, image: image, attributes: isEnabled ? [] : [.disabled]) { [weak self] _ in
           self?.channel.invokeMethod("itemSelected", arguments: ["index": i])
         }
+        action.state = isChecked ? .on : .off
         current.append(action)
       }
     flushGroup()
