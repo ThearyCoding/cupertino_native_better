@@ -1,3 +1,38 @@
+## 1.4.0
+
+### Bug Fixes
+
+- **Fixed**: `CNTabBar` top-edge shadow bleeding over modals / bottom sheets — the regression of Issue #2 that landed between v1.3.0 and v1.3.8 (Issue #2)
+  - Root cause: in v1.3.3 the `clipsToBounds = true` containment from the original v1.3.0 fix was made conditional and disabled on iOS 26+. That removed the only thing keeping the UITabBar's top-edge hairline inside the platform view's bounds.
+  - `container.clipsToBounds = true` restored unconditionally on the regular tab-bar platform view (5 sites — single-bar and split-bar in both `init` and `setLayout`)
+  - Added `bar.shadowImage = UIImage()` on every `UITabBar` instance as belt-and-suspenders against iOS 26 ignoring the appearance-level shadow override
+
+- **Fixed**: Liquid Glass halo rendering outside platform-view bounds during iOS route transitions — the "placeholder square" reported across CNButton, CNTabBar, and other widgets (Issue #29)
+  - Root cause: iOS 26 Liquid Glass effects (`UIButton.Configuration.glass()`, `UITabBar` glass material, `.glassEffect()` SwiftUI modifier) render a translucent halo that extends slightly outside the view's frame. Without containment, that halo became visible during route transitions as a square outline around the widget on the outgoing page.
+  - Same containment pattern as Issue #2 applied to: `CNButton`, `CNPopupMenuButton`, `CNSearchBar`, `CNFloatingIsland`, `CNLiquidGlassContainer`
+  - `container.clipsToBounds = true`, `container.layer.shadowOpacity = 0`, `container.layer.backgroundColor = clear`, `container.isOpaque = false` plus the same on the inner subview where applicable
+
+- **Fixed**: `CNTabBar` with `searchItem` — the floating Liquid Glass search orb's top edge was being cropped (commented in Issue #31 by @el2zay)
+  - The iOS 26+ search-tab-bar variant (`CupertinoTabBarSearchPlatformView`) now leaves its container un-clipped so the search orb can render its top edge correctly. Top-edge hairline is still suppressed via `bar.shadowImage = UIImage()` and `bar.layer.shadowOpacity = 0`, so the original Issue #2 shadow bleed does not return.
+
+- **Fixed**: `CNGlassButtonGroup` badge X-position — the last badge floated near the screen edge instead of sitting on its button when buttons were centered as a tight pill inside a wider container
+  - `updateBadgePositions()` now estimates each button's rendered width from icon size + padding + minHeight (capsule width = max(intrinsic, minHeight)), computes the centered-HStack starting offset, and places each badge at the actual button's top-right corner instead of dividing container width evenly across button count.
+
+- **Fixed**: `CNGlassButtonGroup` Auto Layout `_UITemporaryLayoutWidth = 0` warning on initial mount — silenced by lowering hosting-view constraint priorities to `.defaultHigh` so UIKit can break them silently during the brief temp-width=0 phase without logging.
+
+### Test demos added
+
+- `Testing → #2: Modal bottom sheet shadow` — opens a `CupertinoModalPopup` over a `CNTabBar` so the top-edge shadow bleed (or its absence) is easy to inspect
+- `Testing → #29: Per-widget halo test` — one slow-transition push per widget so each can be verified in isolation
+- `Testing → CNTabBar split-search clip` — `CNTabBar` with a `searchItem` so the floating orb is easy to inspect at the bottom-right
+- `Testing → #31: TextField disappear in modal` — Material `Scaffold` + `CNTabBar` (with `searchItem`) in `bottomNavigationBar`, opens a modal sheet with a Material `TextField` and a `CupertinoTextField` for comparison
+
+### Pana
+
+- 160/160
+
+---
+
 ## 1.3.9
 
 ### New Features
