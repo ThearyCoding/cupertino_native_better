@@ -14,16 +14,12 @@ import 'demos/native_tab_bar_demo.dart';
 import 'demos/bottom_nav_test.dart';
 import 'demos/bottom_nav_indexed_test.dart';
 import 'demos/bottom_nav_custom_icons_test.dart';
-<<<<<<< Updated upstream
-import 'demos/issue31_textfield_disappear_test.dart';
-=======
 import 'demos/issue2_modal_shadow_test.dart';
 import 'demos/issue28_checked_state_test.dart';
 import 'demos/issue29_artifact_test.dart';
 import 'demos/issue29_transition_test.dart';
 import 'demos/issue31_textfield_disappear_test.dart';
 import 'demos/tabbar_split_search_clip_test.dart';
->>>>>>> Stashed changes
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -416,23 +412,6 @@ class HomePage extends StatelessWidget {
                 onTap: () {
                   Navigator.of(context).push(
                     CupertinoPageRoute(builder: (_) => const BottomNavIndexedTestPage()),
-                  );
-                },
-              ),
-              CupertinoListTile(
-                title: Text('#31: TextField disappear in modal'),
-                leading: CNIcon(
-                  symbol: CNSymbol(
-                    'textformat.abc',
-                    color: accentColor,
-                  ),
-                ),
-                trailing: CupertinoListTileChevron(),
-                onTap: () {
-                  Navigator.of(context).push(
-                    CupertinoPageRoute(
-                      builder: (_) => const Issue31TextFieldDisappearTest(),
-                    ),
                   );
                 },
               ),
