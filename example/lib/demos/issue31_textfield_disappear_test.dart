@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:cupertino_native_better/cupertino_native_better.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -39,7 +41,199 @@ class _Issue31TextFieldDisappearTestState
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(),
+      // Issue #31 fix: register the observer that powers CNTabBar's
+      // auto-hide-on-modal behavior. Without this, CNTabBar still works
+      // but won't auto-hide and the TextField inside the modal sheet
+      // will be invisible (the original bug).
+      navigatorObservers: [CNTabBarRouteObserver()],
       home: _AlbumsPage(onPop: () => Navigator.of(context).pop()),
+    );
+  }
+}
+
+class NewAlbumSheet extends StatefulWidget {
+  final String? oldAlbum;
+  const NewAlbumSheet({super.key, this.oldAlbum});
+
+  @override
+  State<NewAlbumSheet> createState() => _NewAlbumSheetState();
+}
+
+class _NewAlbumSheetState extends State<NewAlbumSheet> {
+  bool enableCreate = false;
+  final ValueNotifier<List<String>> selectedPaths = ValueNotifier([]);
+  final ValueNotifier<int> countSelected = ValueNotifier(0);
+  final ValueNotifier<Uint8List?> coverThumb = ValueNotifier(null);
+  late TextEditingController albumNameController;
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    albumNameController = TextEditingController();
+    albumNameController.text = widget.oldAlbum ?? "";
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FocusScope.of(context).requestFocus(_focusNode);
+    });
+  }
+
+  @override
+  void dispose() {
+    albumNameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Color primary = Theme.of(context).primaryColor;
+    Size size = MediaQuery.of(context).size;
+    return Scaffold(
+      appBar: AppBar(
+        leading: Transform.scale(
+          scale: 0.8,
+          child: CNButton.icon(
+            icon: CNSymbol('xmark', size: 16),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        title: Text(
+          widget.oldAlbum != null ? "Edit album" : "New Album",
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        centerTitle: true,
+        actions: [
+          CNButton(
+            label: widget.oldAlbum != null ? "Edit" : "Create",
+            enabled:
+                (enableCreate && countSelected.value > 0) ||
+                widget.oldAlbum != null,
+            tint: Colors.blue.withAlpha(230),
+            onPressed: () {
+              if (widget.oldAlbum != null) {
+              } else {}
+
+              Navigator.pop(context);
+            },
+          ),
+          SizedBox(width: 10),
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            SizedBox(height: size.height * 0.01),
+            Center(
+              child: ValueListenableBuilder<Uint8List?>(
+                valueListenable: coverThumb,
+                builder: (context, bytes, _) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: primary.withAlpha(24),
+                      borderRadius: BorderRadius.all(Radius.circular(20)),
+                    ),
+                    width: size.width * 0.5,
+                    height: size.height * 0.2,
+                    clipBehavior: Clip.antiAlias,
+                    child: Icon(
+                      CupertinoIcons.photo_fill,
+                      size: 40,
+                      color: primary.withAlpha(100),
+                    ),
+                  );
+                },
+              ),
+            ),
+            SizedBox(height: 10),
+            Padding(
+              padding: EdgeInsetsGeometry.symmetric(horizontal: 120),
+              child: CNButton(
+                label: "Add photos",
+                tint: primary,
+                onPressed: () {
+                  showModalBottomSheet(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.9,
+                    ),
+                    backgroundColor: Colors.black,
+                    isScrollControlled: true,
+                    context: context,
+                    builder: (context) {
+                      return Material(
+                        child: Scaffold(
+                          appBar: AppBar(
+                            leading: Transform.scale(
+                              scale: 0.9,
+                              child: CNButton.icon(
+                                icon: CNSymbol('xmark', size: 16),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ),
+                            title: Text(
+                              "Select photos",
+                              style: TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            actionsPadding: EdgeInsets.only(left: 10),
+                            actions: [
+                              ValueListenableBuilder<int>(
+                                valueListenable: countSelected,
+                                builder: (context, value, _) {
+                                  return CNButton.icon(
+                                    enabled: value > 0,
+                                    onPressed: () => Navigator.pop(context),
+                                    icon: CNSymbol('xmark', size: 16),
+                                    tint: Colors.blue,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                          body: SizedBox(),
+                          // body: LibraryPage(
+                          //   onlySelect: true,
+                          //   onSelectedChanged: (paths, thumbBytes) {
+                          //     selectedPaths.value = paths;
+                          //     coverThumb.value = thumbBytes;
+                          //     countSelected.value = paths.length;
+                          //   },
+                          // ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            SizedBox(height: 25),
+            Padding(
+              padding: EdgeInsetsGeometry.symmetric(horizontal: 20),
+              child: TextField(
+                controller: albumNameController,
+                autofocus: true,
+                textCapitalization: TextCapitalization.sentences,
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                decoration: InputDecoration(
+                  filled: true,
+                  hint: Text(
+                    "Album name",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: primary.withAlpha(100),
+                    ),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(25)),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                onChanged: (value) {
+                  setState(() => enableCreate = value.isNotEmpty);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -54,89 +248,6 @@ class _AlbumsPage extends StatefulWidget {
 
 class _AlbumsPageState extends State<_AlbumsPage> {
   int _currentIndex = 1;
-
-  void _openNewAlbumSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        final inset = MediaQuery.of(ctx).viewInsets.bottom;
-        return Padding(
-          padding: EdgeInsets.only(bottom: inset),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.of(ctx).pop(),
-                      ),
-                      const Text('New Album',
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w600)),
-                      const TextButton(
-                        onPressed: null,
-                        child: Text('Create'),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  width: 140,
-                  height: 140,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.image_outlined,
-                      color: Colors.grey, size: 36),
-                ),
-                const SizedBox(height: 16),
-                OutlinedButton(
-                  onPressed: () {},
-                  child: const Text('Add photos'),
-                ),
-                const SizedBox(height: 24),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24),
-                  child: TextField(
-                    decoration: InputDecoration(
-                      filled: true,
-                      hintText: 'Album name (Material TextField)',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(12)),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24),
-                  child: CupertinoTextField(
-                    placeholder: 'Album name (CupertinoTextField)',
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -147,10 +258,24 @@ class _AlbumsPageState extends State<_AlbumsPage> {
         ),
         title: const Text('Albums'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _openNewAlbumSheet,
-            tooltip: 'New Album',
+          CNButton.icon(
+            icon: CNSymbol('plus', size: 20),
+            onPressed: () {
+              showCupertinoSheet(
+                context: context,
+                builder: (ctx) {
+                  return Localizations(
+                    locale: const Locale('en', 'US'),
+                    delegates: const [
+                      DefaultMaterialLocalizations.delegate,
+                      DefaultWidgetsLocalizations.delegate,
+                      DefaultCupertinoLocalizations.delegate,
+                    ],
+                    child: NewAlbumSheet(),
+                  );
+                },
+              );
+            },
           ),
         ],
       ),
@@ -171,10 +296,7 @@ class _AlbumsPageState extends State<_AlbumsPage> {
                   Text(
                     'Repro: TextField inside modal sheet disappears '
                     'when CNTabBar is in bottomNavigationBar.',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 8),
                   Text(
@@ -190,36 +312,62 @@ class _AlbumsPageState extends State<_AlbumsPage> {
           ],
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: CNTabBar(
-          tint: Colors.blue,
-          iconSize: 18,
-          items: const [
-            CNTabBarItem(
-              label: 'Library',
-              icon: CNSymbol('photo.fill.on.rectangle.fill'),
+      bottomNavigationBar: false
+          ? BottomNavigationBar(
+              elevation: 0,
+              type: BottomNavigationBarType.fixed,
+              selectedFontSize: 13,
+              unselectedFontSize: 13,
+              currentIndex: _currentIndex,
+              onTap: (value) {
+                setState(() {
+                  _currentIndex = value;
+                });
+              },
+              items: [
+                BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.photo),
+                  label: "Library",
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.collections),
+                  label: "Albums",
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.search),
+                  label: "Search",
+                ),
+              ],
+            )
+          : SafeArea(
+              child: CNTabBar(
+                tint: Colors.blue,
+                iconSize: 18,
+                items: const [
+                  CNTabBarItem(
+                    label: 'Library',
+                    icon: CNSymbol('photo.fill.on.rectangle.fill'),
+                  ),
+                  CNTabBarItem(
+                    label: 'Albums',
+                    icon: CNSymbol('rectangle.stack.fill'),
+                  ),
+                ],
+                currentIndex: _currentIndex,
+                onTap: (i) => setState(() => _currentIndex = i),
+                searchItem: CNTabBarSearchItem(
+                  placeholder: 'Search',
+                  automaticallyActivatesSearch: false,
+                  onSearchChanged: (_) {},
+                  onSearchSubmit: (_) {},
+                  onSearchActiveChanged: (_) {},
+                  style: const CNTabBarSearchStyle(
+                    iconSize: 20,
+                    animationDuration: Duration(milliseconds: 400),
+                  ),
+                ),
+              ),
             ),
-            CNTabBarItem(
-              label: 'Albums',
-              icon: CNSymbol('rectangle.stack.fill'),
-            ),
-          ],
-          currentIndex: _currentIndex,
-          onTap: (i) => setState(() => _currentIndex = i),
-          searchItem: CNTabBarSearchItem(
-            placeholder: 'Search',
-            automaticallyActivatesSearch: false,
-            onSearchChanged: (_) {},
-            onSearchSubmit: (_) {},
-            onSearchActiveChanged: (_) {},
-            style: const CNTabBarSearchStyle(
-              iconSize: 20,
-              animationDuration: Duration(milliseconds: 400),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

@@ -18,6 +18,7 @@ import 'demos/issue2_modal_shadow_test.dart';
 import 'demos/issue28_checked_state_test.dart';
 import 'demos/issue29_artifact_test.dart';
 import 'demos/issue29_transition_test.dart';
+import 'demos/issue31_no_search_test.dart';
 import 'demos/issue31_textfield_disappear_test.dart';
 import 'demos/issue33_svg_tabbar_test.dart';
 import 'demos/stack_positioned_tabbar_test.dart';
@@ -55,6 +56,12 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return CupertinoApp(
+      // Issue #31 fix: register the observer at the app-level navigator so
+      // CNTabBar can detect modals/sheets pushed via the root navigator
+      // (default for `showCupertinoSheet`, `showCupertinoModalPopup`, etc.)
+      // and auto-hide its native UITabBar to avoid z-order conflicts with
+      // Flutter-rendered modal content (e.g. Material TextFields).
+      navigatorObservers: [CNTabBarRouteObserver()],
       theme: CupertinoThemeData(
         brightness: _isDarkMode ? Brightness.dark : Brightness.light,
         primaryColor: _accentColor,
@@ -342,6 +349,23 @@ class HomePage extends StatelessWidget {
                   Navigator.of(context).push(
                     CupertinoPageRoute(
                       builder: (_) => const Issue31TextFieldDisappearTest(),
+                    ),
+                  );
+                },
+              ),
+              CupertinoListTile(
+                title: Text('#31: TextField — NO search variant (hypothesis test)'),
+                leading: CNIcon(
+                  symbol: CNSymbol(
+                    'textformat',
+                    color: accentColor,
+                  ),
+                ),
+                trailing: CupertinoListTileChevron(),
+                onTap: () {
+                  Navigator.of(context).push(
+                    CupertinoPageRoute(
+                      builder: (_) => const Issue31NoSearchTest(),
                     ),
                   );
                 },

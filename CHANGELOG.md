@@ -1,3 +1,43 @@
+## 1.4.2
+
+### New
+
+- **`CNTabBarRouteObserver`** — a `NavigatorObserver` that lets `CNTabBar` auto-hide while a full-screen sheet is presented over its route. Resolves Issue #31 (Material `TextField` invisible inside `showCupertinoSheet` when `CNTabBar` is in the bottom nav slot).
+
+  The native `UITabBar` is rendered inside a Flutter `UiKitView`. When a Flutter-rendered sheet route is presented over the same navigator, hybrid composition can leave the tab bar's UIView at a higher z-index than the modal's Flutter content — making `TextField`s inside the sheet invisible and letting the bar bleed through during sheet drags. Auto-hide swaps the platform view for an empty placeholder while the sheet is up, mirroring what iOS does natively when a `UITabBarController` presents a full-screen modal.
+
+  **Setup** (one line per app):
+  ```dart
+  CupertinoApp(
+    navigatorObservers: [CNTabBarRouteObserver()],
+    // ...
+  )
+  ```
+  Or `MaterialApp(navigatorObservers: [CNTabBarRouteObserver()], ...)`. Without this observer registered, `CNTabBar` still renders correctly — it just won't auto-hide on top of sheets and you may hit the Issue #31 z-order glitch.
+
+- **`CNTabBar(autoHideOnModal: bool = true)`** — opt-out for the auto-hide behaviour. Default `true`. Set `false` to keep the tab bar visible behind sheets (rare; typically requires a native sheet that won't trigger the z-order issue).
+
+### Bug Fixes
+
+- **Fixed**: tab bar's selected index resetting to 0 after a modal/sheet closed and the platform view was recreated (Issue #2 page repro).
+  - Root cause: in `_onCreated` we called `refresh` before `setSelectedIndex`. The native `refresh` method (a workaround for the 5-item-label-rendering bug Issue #6) captures `bar.selectedItem` at start, cycles through items asynchronously, then "restores" the captured value — overriding the `setSelectedIndex(currentIndex)` we sent right after, leaving the bar stuck at the stale `creationParams.selectedIndex = 0`.
+  - Fix: swapped the order — `setSelectedIndex` now runs BEFORE `refresh`. Refresh then captures the correct index and restores to it. Applied to both the 50ms and 200ms recreation passes.
+
+### Behavioural details
+
+- Auto-hide is intentionally narrow: it triggers only for routes whose runtime type name contains `Sheet` (`CupertinoSheetRoute`, `ModalBottomSheetRoute`). Action-sheet popups (`CupertinoModalPopupRoute`), dialogs, and regular page pushes do NOT trigger auto-hide. This avoids a visible "platform view recreate + index restore" jump animation on quick popups, while still fixing the z-order issue for full-screen sheets.
+
+### Example app
+
+- **Added**: `Testing → #31: TextField — NO search variant (hypothesis test)` — same flow as the Issue #31 reproduction but with `CNTabBar` configured without `searchItem` and `autoHideOnModal: false`, used to verify the bug isn't search-specific.
+- **Added**: registered `CNTabBarRouteObserver()` on the example app's `CupertinoApp` so all demo screens benefit from auto-hide.
+
+### Pana
+
+- 160/160
+
+---
+
 ## 1.4.1
 
 ### Bug Fixes

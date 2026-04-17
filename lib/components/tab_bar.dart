@@ -112,6 +112,7 @@ class CNTabBar extends StatefulWidget {
     this.searchController,
     this.labelFontFamily,
     this.labelFontSize,
+    this.autoHideOnModal = true,
   }) : assert(items.length >= 2, 'Tab bar must have at least 2 items'),
        assert(
          items.length <= 5,
@@ -212,6 +213,30 @@ class CNTabBar extends StatefulWidget {
   /// is used (approximately 10pt on iOS).
   final double? labelFontSize;
 
+  /// Whether the tab bar automatically hides itself while a modal/sheet is
+  /// presented over its route.
+  ///
+  /// On iOS, the underlying `UITabBar` is rendered as a native UIView via
+  /// hybrid composition. When a Flutter-rendered modal sheet (e.g. one
+  /// shown via `showCupertinoSheet`, `showCupertinoModalPopup`, or
+  /// `showModalBottomSheet`) is presented over the route containing this
+  /// tab bar, the platform view's z-order can interfere with the modal —
+  /// specifically, Flutter-rendered widgets inside the modal (notably
+  /// Material `TextField`s) may appear behind the tab bar's native layer
+  /// and become invisible (Issue #31).
+  ///
+  /// When this is `true` (default), `CNTabBar` listens to its
+  /// [ModalRoute.secondaryAnimation] and renders an empty `SizedBox` in
+  /// place of the platform view while a modal/sheet is on top. When the
+  /// modal is dismissed, the platform view is restored. This matches the
+  /// native iOS pattern where `UITabBarController`'s tab bar is naturally
+  /// hidden during full-screen modal presentations.
+  ///
+  /// Set to `false` if you need the tab bar to remain visible behind
+  /// modals (rare, and typically requires a native-only sheet that won't
+  /// hit the z-order issue).
+  final bool autoHideOnModal;
+
   @override
   State<CNTabBar> createState() => _CNTabBarState();
 }
@@ -240,6 +265,14 @@ class _CNTabBarState extends State<CNTabBar> {
   String _searchText = '';
   FocusNode? _searchFocusNode;
 
+  // Issue #31: auto-hide while a modal/sheet is presented over this route.
+  // We listen to a global modal depth counter maintained by
+  // [CNTabBarRouteObserver] (which the user wires into MaterialApp's
+  // navigatorObservers). When depth > 0, a modal/sheet is on top and we
+  // hide the platform view so its native UIView z-order doesn't conflict
+  // with Flutter-rendered modal content (notably Material TextFields).
+  bool _modalUp = false;
+
   bool get _isDark => ThemeHelper.isDark(context);
   Color? get _effectiveTint =>
       widget.tint ?? ThemeHelper.getPrimaryColor(context);
@@ -266,7 +299,18 @@ class _CNTabBarState extends State<CNTabBar> {
       PlatformViewGuard.ensureScheduled();
       PlatformViewGuard.readyNotifier.addListener(_onPlatformViewGuardReady);
     }
+    if (widget.autoHideOnModal) {
+      CNTabBarRouteObserver.modalDepth.addListener(_onModalDepthChanged);
+      _onModalDepthChanged();
+    }
     _scheduleNativePreparation();
+  }
+
+  void _onModalDepthChanged() {
+    final shouldHide = CNTabBarRouteObserver.modalDepth.value > 0;
+    if (shouldHide != _modalUp && mounted) {
+      setState(() => _modalUp = shouldHide);
+    }
   }
 
   @override
@@ -289,6 +333,7 @@ class _CNTabBarState extends State<CNTabBar> {
     _prepGeneration++;
     PlatformViewGuard.readyNotifier.removeListener(_onPlatformViewGuardReady);
     widget.searchController?.removeListener(_onSearchControllerChanged);
+    CNTabBarRouteObserver.modalDepth.removeListener(_onModalDepthChanged);
     _searchFocusNode?.dispose();
     _channel?.setMethodCallHandler(null);
     _channel = null;
@@ -379,6 +424,14 @@ class _CNTabBarState extends State<CNTabBar> {
 
     if (_creationParams == null) {
       return _buildFlutterFallback(context);
+    }
+
+    // Issue #31: when a modal/sheet is presented over our route, render
+    // an empty placeholder of the same size instead of the platform view.
+    // Restores when the modal is dismissed.
+    if (_modalUp && widget.autoHideOnModal) {
+      final h = widget.height ?? _intrinsicHeight ?? 50.0;
+      return SizedBox(height: h);
     }
 
     return _buildNativeTabBarPlatformView(_creationParams!);
@@ -651,14 +704,22 @@ class _CNTabBarState extends State<CNTabBar> {
 
     // Force refresh for label rendering (Issue #6: sporadic missing labels with 5 items).
     // First refresh after 50ms; second after 200ms for slow-to-initialize native view.
+    //
+    // Order matters: setSelectedIndex must run BEFORE refresh on each pass.
+    // The native `refresh` method captures `bar.selectedItem` at start, then
+    // cycles through items asynchronously and restores the captured value.
+    // If we ran setSelectedIndex AFTER refresh, refresh's restore would
+    // override our intended index, leaving the bar stuck at whatever was
+    // there at refresh-start time (typically the stale creationParams
+    // selectedIndex = 0 — see auto-hide-on-modal recreation flow).
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       Future.delayed(const Duration(milliseconds: 50), () async {
         if (mounted && _channel != null) {
           try {
-            await _channel?.invokeMethod('refresh');
             await _channel?.invokeMethod('setSelectedIndex', {
               'index': widget.currentIndex,
             });
+            await _channel?.invokeMethod('refresh');
           } catch (e) {
             // Ignore MissingPluginException during hot reload or view recreation
           }
@@ -667,10 +728,10 @@ class _CNTabBarState extends State<CNTabBar> {
       Future.delayed(const Duration(milliseconds: 200), () async {
         if (mounted && _channel != null) {
           try {
-            await _channel?.invokeMethod('refresh');
             await _channel?.invokeMethod('setSelectedIndex', {
               'index': widget.currentIndex,
             });
+            await _channel?.invokeMethod('refresh');
           } catch (e) {
             // Ignore when platform view is being recreated
           }
@@ -1272,5 +1333,108 @@ class _CNTabBarState extends State<CNTabBar> {
 
     // Fallback to empty circle if nothing provided
     return const Icon(CupertinoIcons.circle, size: defaultSize);
+  }
+}
+
+/// `NavigatorObserver` that lets [CNTabBar] auto-hide while a modal/sheet
+/// is presented over its route (Issue #31).
+///
+/// **Why it exists**: on iOS, `CNTabBar` is rendered as a native UITabBar
+/// inside a Flutter `UiKitView`. When a Flutter-rendered modal sheet is
+/// presented over the same route (e.g. via `showCupertinoSheet`,
+/// `showCupertinoModalPopup`, or `showModalBottomSheet`), Flutter's hybrid
+/// composition can leave the tab bar's UIView at a higher z-index than
+/// the modal's Flutter content — making Material `TextField`s inside the
+/// modal invisible and letting the tab bar bleed through during sheet
+/// drags. (Cupertino has the same trade-off: `UITabBarController` would
+/// solve it natively, but that requires owning the whole nav stack.)
+///
+/// **What it does**: tracks the depth of modal/popup/sheet/dialog routes
+/// on every navigator it's attached to, exposed via [modalDepth]. When
+/// depth > 0, [CNTabBar] (with the default `autoHideOnModal: true`) swaps
+/// its platform view for an empty `SizedBox` of the same height, mirroring
+/// what iOS does natively when a UIViewController presents a full-screen
+/// modal over a UITabBarController.
+///
+/// **Setup** (one line per app):
+/// ```dart
+/// MaterialApp(
+///   navigatorObservers: [CNTabBarRouteObserver()],
+///   // ...
+/// )
+/// ```
+/// or for `CupertinoApp`:
+/// ```dart
+/// CupertinoApp(
+///   navigatorObservers: [CNTabBarRouteObserver()],
+///   // ...
+/// )
+/// ```
+///
+/// Without this observer registered, [CNTabBar] still renders correctly
+/// — it just won't auto-hide when modals are pushed over it, and you may
+/// hit the Issue #31 z-order glitch with Flutter-rendered modal content.
+class CNTabBarRouteObserver extends NavigatorObserver {
+  /// Global modal-depth notifier shared across all [CNTabBarRouteObserver]
+  /// instances. [CNTabBar] listens to this and hides its platform view
+  /// while depth > 0.
+  static final ValueNotifier<int> _modalDepth = ValueNotifier<int>(0);
+
+  /// Read-only listenable of the current modal/sheet depth.
+  static ValueListenable<int> get modalDepth => _modalDepth;
+
+  /// Heuristic for "is this route a full-screen-ish sheet that should
+  /// trigger tab-bar auto-hide?". Intentionally narrow: only matches
+  /// routes whose runtime type name contains `Sheet`. This catches the
+  /// two full-screen-ish sheet routes that benefit from auto-hide:
+  ///   - `CupertinoSheetRoute` (PageRoute, full-screen Cupertino sheet)
+  ///   - `ModalBottomSheetRoute` (PopupRoute, Material bottom sheet)
+  ///
+  /// Routes we intentionally DO NOT match here:
+  ///   - `CupertinoModalPopupRoute` / other action-sheet popups: they
+  ///     cover only a small portion of the screen and dismiss quickly,
+  ///     making the platform-view recreate-and-restore visible as an
+  ///     ugly index-jump animation. The Swift-side `clipsToBounds = true`
+  ///     containment (Issue #2 fix) handles the shadow z-order on its
+  ///     own here, so we don't need to hide.
+  ///   - `DialogRoute` / `RawDialogRoute`: dialogs sit center-screen and
+  ///     do not fully cover the tab bar; their scrim handles dimming.
+  ///   - Regular `PageRoute` pushes (Material/Cupertino page routes):
+  ///     the new page replaces the current view entirely, so the tab
+  ///     bar is offscreen anyway.
+  bool _isModal(Route<dynamic> route) {
+    return route.runtimeType.toString().contains('Sheet');
+  }
+
+  void _bumpUp(Route<dynamic> route) {
+    _modalDepth.value = _modalDepth.value + 1;
+  }
+
+  void _bumpDown(Route<dynamic> route) {
+    final next = _modalDepth.value - 1;
+    _modalDepth.value = next < 0 ? 0 : next;
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (_isModal(route)) _bumpUp(route);
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (_isModal(route)) _bumpDown(route);
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (_isModal(route)) _bumpDown(route);
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    final wasModal = oldRoute != null && _isModal(oldRoute);
+    final isNow = newRoute != null && _isModal(newRoute);
+    if (wasModal && !isNow) _bumpDown(oldRoute);
+    if (!wasModal && isNow) _bumpUp(newRoute);
   }
 }
