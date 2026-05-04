@@ -22,6 +22,7 @@
 /// - [CNIcon] - SF Symbols icon renderer
 /// - [CNGlassButtonGroup] - Glass button group with Liquid Glass effects
 /// - [LiquidGlassContainer] - Container with Liquid Glass background
+/// - [CNDialog] - Native alert & action sheet dialog with customizable actions and optional Liquid Glass styling
 ///
 /// {@category Main}
 library;
@@ -41,6 +42,7 @@ export 'style/image_placement.dart';
 export 'components/button.dart';
 export 'components/glass_button_group.dart';
 export 'components/liquid_glass_container.dart';
+export 'components/dialog.dart';
 export 'utils/version_detector.dart';
 export 'utils/theme_helper.dart';
 export 'style/glass_effect.dart';

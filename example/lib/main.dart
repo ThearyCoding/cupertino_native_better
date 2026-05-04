@@ -234,6 +234,21 @@ class HomePage extends StatelessWidget {
                   );
                 },
               ),
+              CupertinoListTile(
+                title: Text('Native Dialog'),
+                leading: CNIcon(
+                  symbol: CNSymbol(
+                    'rectangle.on.rectangle.angled',
+                    color: accentColor,
+                  ),
+                ),
+                trailing: CupertinoListTileChevron(),
+                onTap: () {
+                  Navigator.of(context).push(
+                    CupertinoPageRoute(builder: (_) => const DialogDemoPage()),
+                  );
+                },
+              ),
             ],
           ),
           CupertinoListSection.insetGrouped(

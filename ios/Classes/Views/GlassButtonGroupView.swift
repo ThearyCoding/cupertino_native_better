@@ -52,7 +52,10 @@ struct GlassButtonGroupSwiftUI: View {
       glassEffectInteractive: button.glassEffectInteractive,
       namespace: namespace,
       config: button.config,
-      badgeCount: nil
+      badgeCount: nil,
+      fontWeight: nil,
+      fontSize: nil,
+      fontFamily: nil
     )
     if button.isPopup, let labels = button.menuLabels, !labels.isEmpty, let onSelected = button.onMenuSelected {
       Menu {
@@ -960,4 +963,3 @@ class GlassButtonGroupPlatformView: NSObject, FlutterPlatformView {
     return ImageUtils.colorFromARGB(argb)
   }
 }
-

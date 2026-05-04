@@ -46,4 +46,20 @@ abstract class CupertinoNativePlatform extends PlatformInterface {
   Future<void> endTransition() {
     throw UnimplementedError('endTransition() has not been implemented.');
   }
+
+  /// Shows a native alert dialog and returns selected action id.
+  ///
+  /// Returns one of: `primary`, `secondary`, `cancel`, or `null` if dismissed.
+  Future<String?> showNativeDialog({
+    required String title,
+    String? message,
+    required String primaryButtonText,
+    String? secondaryButtonText,
+    String? cancelButtonText,
+    String primaryButtonStyle = 'normal',
+    String secondaryButtonStyle = 'normal',
+    String? preferredAction,
+  }) {
+    throw UnimplementedError('showNativeDialog() has not been implemented.');
+  }
 }

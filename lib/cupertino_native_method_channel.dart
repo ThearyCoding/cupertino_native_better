@@ -36,4 +36,30 @@ class MethodChannelCupertinoNative extends CupertinoNativePlatform {
   Future<void> endTransition() async {
     await methodChannel.invokeMethod<void>('endTransition');
   }
+
+  @override
+  /// See [CupertinoNativePlatform.showNativeDialog].
+  Future<String?> showNativeDialog({
+    required String title,
+    String? message,
+    required String primaryButtonText,
+    String? secondaryButtonText,
+    String? cancelButtonText,
+    String primaryButtonStyle = 'normal',
+    String secondaryButtonStyle = 'normal',
+    String? preferredAction,
+  }) async {
+    final action = await methodChannel
+        .invokeMethod<String>('showNativeDialog', {
+          'title': title,
+          'message': message,
+          'primaryButtonText': primaryButtonText,
+          'secondaryButtonText': secondaryButtonText,
+          'cancelButtonText': cancelButtonText,
+          'primaryButtonStyle': primaryButtonStyle,
+          'secondaryButtonStyle': secondaryButtonStyle,
+          'preferredAction': preferredAction,
+        });
+    return action;
+  }
 }

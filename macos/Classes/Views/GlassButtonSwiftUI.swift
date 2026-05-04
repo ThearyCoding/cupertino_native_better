@@ -21,6 +21,20 @@ struct GlassButtonSwiftUI: View {
   @Namespace private var namespace
   let config: GlassButtonConfig
   let badgeCount: Int?
+  let fontWeight: Font.Weight?
+  let fontSize: CGFloat?
+  let fontFamily: String?
+
+  private var textFont: Font? {
+    if let family = fontFamily {
+      let size = fontSize ?? NSFont.systemFontSize
+      return .custom(family, size: size)
+    }
+    if let size = fontSize {
+      return .system(size: size)
+    }
+    return nil
+  }
 
   var body: some View {
     Button(action: onPressed) {
@@ -41,6 +55,8 @@ struct GlassButtonSwiftUI: View {
         if let title = title {
           Text(title)
             .foregroundColor(tint)
+            .fontWeight(fontWeight)
+            .font(textFont)
         }
       }
       .padding(config.padding)
@@ -125,4 +141,3 @@ struct AnyShape: Shape {
     return _path(rect)
   }
 }
-

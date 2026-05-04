@@ -286,6 +286,11 @@ class _CNTabBarState extends State<CNTabBar> {
   String? _lastLabelFontFamily;
   double? _lastLabelFontSize;
 
+  // ADD THIS: Flag to prevent auto-sync on initial load
+  bool _initialSyncDone = false;
+  // ADD THIS: Flag to track if we're in the middle of a programmatic update
+  bool _isUpdatingFromFlutter = false;
+
   // Search state
   bool _isSearchActive = false;
   String _searchText = '';
@@ -808,11 +813,13 @@ class _CNTabBarState extends State<CNTabBar> {
     // there at refresh-start time (typically the stale creationParams
     // selectedIndex = 0 — see auto-hide-on-modal recreation flow).
     if (defaultTargetPlatform == TargetPlatform.iOS) {
+      // Small delay to ensure view is ready
       Future.delayed(const Duration(milliseconds: 50), () async {
         if (mounted && _channel != null) {
           try {
             await _channel?.invokeMethod('setSelectedIndex', {
               'index': widget.currentIndex,
+              'isInitial': true,
             });
             await _channel?.invokeMethod('refresh');
           } catch (e) {
@@ -839,8 +846,8 @@ class _CNTabBarState extends State<CNTabBar> {
     if (call.method == 'valueChanged') {
       final args = call.arguments as Map?;
       final idx = (args?['index'] as num?)?.toInt();
-      if (idx != null) {
-        // Always fire onTap, even for reselects (Issue #13 fix)
+      if (idx != null && !_isUpdatingFromFlutter) {
+        // Only call onTap if it's a user tap, not a programmatic update
         widget.onTap(idx);
         _lastIndex = idx;
       }
@@ -864,9 +871,12 @@ class _CNTabBarState extends State<CNTabBar> {
     return null;
   }
 
-  Future<void> _syncPropsToNativeIfNeeded() async {
+  Future<void> _syncPropsToNativeIfNeeded({
+    bool skipIndexUpdate = false,
+  }) async {
     final ch = _channel;
     if (ch == null) return;
+
     // Capture theme-dependent values before awaiting
     final idx = widget.currentIndex;
     final tint = resolveColorToArgb(_effectiveTint, context);
@@ -874,7 +884,11 @@ class _CNTabBarState extends State<CNTabBar> {
     final iconScale = MediaQuery.of(context).devicePixelRatio;
 
     try {
-      if (_lastIndex != idx) {
+      // ADD THIS: Set flag to prevent recursive updates
+      _isUpdatingFromFlutter = true;
+
+      // Only update index if not skipped and index actually changed
+      if (!skipIndexUpdate && _lastIndex != idx) {
         await ch.invokeMethod('setSelectedIndex', {'index': idx});
         _lastIndex = idx;
       }
@@ -914,6 +928,7 @@ class _CNTabBarState extends State<CNTabBar> {
         // Only badges changed - use lightweight update
         await ch.invokeMethod('setBadges', {'badges': badges});
         _lastBadges = badges;
+        _isUpdatingFromFlutter = false;
         return;
       }
 
@@ -1029,6 +1044,9 @@ class _CNTabBarState extends State<CNTabBar> {
       }
     } catch (e) {
       // Ignore MissingPluginException during hot reload or view recreation
+    } finally {
+      // ADD THIS: Reset flag
+      _isUpdatingFromFlutter = false;
     }
   }
 
@@ -1037,7 +1055,10 @@ class _CNTabBarState extends State<CNTabBar> {
     super.didChangeDependencies();
     _attachSecondaryRouteAnim();
     _syncBrightnessIfNeeded();
-    _syncPropsToNativeIfNeeded();
+    // Only sync if initial sync is done
+    if (_initialSyncDone) {
+      _syncPropsToNativeIfNeeded(skipIndexUpdate: true);
+    }
   }
 
   Future<void> _syncBrightnessIfNeeded() async {

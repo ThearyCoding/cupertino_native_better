@@ -30,7 +30,48 @@
 /// - [CNGlassButtonGroup] - Grouped buttons with unified glass effects
 /// - [CNSearchBar] - Expandable search bar with animations
 /// - [CNToast] - Toast notifications with glass effects
+/// - [CNDialog] - Native dialog/alert with Liquid Glass styling and platform-adaptive presentation
 /// - [LiquidGlassContainer] - Apply glass effects to any widget
+///
+/// ## Dialog (CNDialog)
+///
+/// A fully native dialog component that automatically adapts to platform conventions:
+///
+/// - **iOS 26+ / macOS 26+**: Uses native system dialogs with Liquid Glass effects,
+///   matching Apple's latest design language.
+/// - **iOS < 26 / macOS < 26**: Falls back to Cupertino-style alert dialogs.
+/// - **Other platforms**: Falls back to Material dialogs.
+///
+/// ### Features
+///
+/// - Native alert and action sheet presentation
+/// - Smooth animations and transitions from the system UI
+/// - Automatic dark mode and theme synchronization
+/// - Configurable title, message, and actions
+/// - Supports both blocking dialogs and non-blocking sheets
+///
+/// ### Example
+///
+/// ```dart
+/// CNDialog.show(
+///   context: context,
+///   title: Text('Delete Item'),
+///   content: Text('Are you sure you want to delete this item?'),
+///   actions: [
+///     CNDialogAction(
+///       label: 'Cancel',
+///       onPressed: () => Navigator.pop(context),
+///     ),
+///     CNDialogAction(
+///       label: 'Delete',
+///       isDestructive: true,
+///       onPressed: () {
+///         // Handle delete
+///       },
+///     ),
+///   ],
+/// );
+/// ```
 ///
 /// ## Platform Support
 ///
@@ -69,6 +110,7 @@ export 'components/search_bar.dart';
 export 'components/toast.dart';
 export 'components/floating_island.dart';
 export 'components/search_scaffold.dart';
+export 'components/dialog.dart';
 export 'components/experimental/glass_card.dart';
 
 // Styles
