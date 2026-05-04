@@ -1334,8 +1334,6 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
     tabBarRight?.removeFromSuperview()
   }
 
-  func view() -> UIView { container }
-
   // MARK: - Appearance helpers
 
   @available(iOS 13.0, *)

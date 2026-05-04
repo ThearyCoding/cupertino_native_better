@@ -1,7 +1,6 @@
 import 'package:cupertino_native_better/cupertino_native_better.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart'
-    show Scaffold, ScaffoldState, showModalBottomSheet;
+import 'package:flutter/material.dart';
 
 /// Reproduction for: when CNTabBar has a `searchItem`, the split-variant
 /// native view uses `container.clipsToBounds = false` so the floating
@@ -171,8 +170,8 @@ class _TabBarSplitSearchClipTestState extends State<TabBarSplitSearchClipTest> {
                 items: const [
                   CNTabBarItem(
                     label: 'Library',
-                    icon: CNSymbol('photo.on.rectangle'),
-                    activeIcon: CNSymbol('photo.on.rectangle.fill'),
+                  activeCustomIcon: Icons.photo_album,
+                    customIcon: Icons.photo
                   ),
                   CNTabBarItem(
                     label: 'Albums',
@@ -182,10 +181,11 @@ class _TabBarSplitSearchClipTestState extends State<TabBarSplitSearchClipTest> {
                 ],
                 currentIndex: _currentIndex,
                 onTap: (i) => setState(() => _currentIndex = i),
-                searchItem: CNTabBarSearchItem(
-                  placeholder: 'Search...',
-                  onSearchChanged: (q) => setState(() => _searchText = q),
-                ),
+                
+                // searchItem: CNTabBarSearchItem(
+                //   placeholder: 'Search...',
+                //   onSearchChanged: (q) => setState(() => _searchText = q),
+                // ),
               ),
             ),
           ],
