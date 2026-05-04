@@ -26,6 +26,7 @@ import 'demos/issue31_textfield_disappear_test.dart';
 import 'demos/issue33_svg_tabbar_test.dart';
 import 'demos/stack_positioned_tabbar_test.dart';
 import 'demos/tabbar_split_search_clip_test.dart';
+import 'demos/dialog_demo_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -245,7 +246,7 @@ class HomePage extends StatelessWidget {
                 trailing: CupertinoListTileChevron(),
                 onTap: () {
                   Navigator.of(context).push(
-                    CupertinoPageRoute(builder: (_) => const DialogDemoPage()),
+                    CupertinoPageRoute(builder: (_) =>  DialogDemoPage()),
                   );
                 },
               ),
