@@ -94,9 +94,7 @@ class _GlassWidgetsModalHaloTestState extends State<GlassWidgetsModalHaloTest> {
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: CupertinoColors.systemTeal,
       body: CupertinoPageScaffold(
-        backgroundColor: CupertinoColors.systemTeal,
         navigationBar: CupertinoNavigationBar(
           backgroundColor: CupertinoColors.systemTeal,
           middle: const Text('Glass widgets modal halo'),
